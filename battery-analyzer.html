@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone Battery Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.07);
+    --green: #00e87a;
+    --green-dim: rgba(0,232,122,0.12);
+    --green-border: rgba(0,232,122,0.25);
+    --orange: #ff9f0a;
+    --red: #ff453a;
+    --text: #f0f0f8;
+    --muted: rgba(240,240,248,0.45);
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+  }
+
+  /* noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  .wrapper { position: relative; z-index: 1; width: 100%; max-width: 560px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 48px; }
+  .logo { 
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--green-dim); border: 1px solid var(--green-border);
+    border-radius: 100px; padding: 6px 16px; margin-bottom: 24px;
+    font-family: var(--mono); font-size: 11px; color: var(--green); letter-spacing: 1px;
+  }
+  .logo-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+  h1 { font-size: clamp(28px, 6vw, 40px); font-weight: 800; line-height: 1.1; letter-spacing: -1px; }
+  h1 span { color: var(--green); }
+  .subtitle { color: var(--muted); font-size: 14px; margin-top: 10px; font-family: var(--mono); }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 20px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,232,122,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .upload-zone:hover, .upload-zone.drag { 
+    border-color: var(--green-border); 
+    background: var(--surface2);
+  }
+  .upload-zone.drag { transform: scale(1.01); }
+  .upload-icon { font-size: 48px; margin-bottom: 16px; display: block; }
+  .upload-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .upload-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .upload-sub span { color: var(--green); }
+  #fileInput { display: none; }
+
+  /* History pills */
+  .history-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; margin: 32px 0 12px; text-transform: uppercase; }
+  .history-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
+  .history-pill {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 100px; padding: 4px 12px; cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .history-pill:hover { border-color: var(--green-border); color: var(--green); }
+  .history-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+  /* Result card */
+  .result { animation: fadeUp 0.5s ease forwards; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .card-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 20px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-title { font-size: 16px; font-weight: 700; }
+  .card-date { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .badge {
+    font-family: var(--mono); font-size: 11px;
+    padding: 4px 12px; border-radius: 100px; font-weight: 500;
+  }
+  .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+  .badge-orange { background: rgba(255,159,10,0.12); color: var(--orange); border: 1px solid rgba(255,159,10,0.25); }
+  .badge-red { background: rgba(255,69,58,0.12); color: var(--red); border: 1px solid rgba(255,69,58,0.25); }
+
+  /* Health big number */
+  .health-section {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .health-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
+  .health-ring svg { transform: rotate(-90deg); }
+  .health-ring-text {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .health-num { font-size: 24px; font-weight: 800; color: var(--green); line-height: 1; }
+  .health-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .health-info h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .health-info p { font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; background: var(--border);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .stat-box {
+    background: var(--surface);
+    padding: 18px 20px;
+  }
+  .stat-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-unit { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .stat-change { font-family: var(--mono); font-size: 10px; margin-top: 4px; }
+  .up { color: var(--green); }
+  .down { color: var(--orange); }
+  .same { color: var(--muted); }
+
+  /* Explanation */
+  .explanation {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    padding: 20px 24px;
+  }
+  .explanation h4 { font-size: 13px; font-weight: 700; margin-bottom: 14px; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .exp-item { margin-bottom: 14px; }
+  .exp-item:last-child { margin-bottom: 0; }
+  .exp-key { font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 3px; }
+  .exp-val { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* Summary verdict */
+  .verdict {
+    background: var(--green-dim);
+    border: 1px solid var(--green-border);
+    border-radius: 0 0 20px 20px;
+    padding: 18px 24px;
+    font-size: 14px; line-height: 1.6;
+  }
+  .verdict strong { color: var(--green); }
+
+  /* Trend section */
+  .trend-section {
+    margin-top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 20px 24px;
+  }
+  .trend-title { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
+  .trend-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .trend-row:last-child { border-bottom: none; }
+  .trend-date { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 80px; flex-shrink: 0; }
+  .trend-bar-wrap { flex: 1; background: rgba(255,255,255,0.05); border-radius: 4px; height: 6px; overflow: hidden; }
+  .trend-bar { height: 100%; border-radius: 4px; background: var(--green); transition: width 0.6s ease; }
+  .trend-val { font-family: var(--mono); font-size: 11px; width: 52px; text-align: right; flex-shrink: 0; }
+
+  /* Actions */
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn {
+    flex: 1; padding: 12px; border-radius: 12px;
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--green); color: #000; }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--green-border); }
+
+  .error-box {
+    background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.3);
+    border-radius: 12px; padding: 16px; font-family: var(--mono); font-size: 13px;
+    color: var(--red); text-align: center; margin-top: 16px;
+  }
+
+  .sep { height: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo">
+      <span class="logo-dot"></span>
+      BATTERY ANALYZER
+    </div>
+    <h1>iPhone <span>Battery</span><br>Real Stats</h1>
+    <p class="subtitle">// upload file .synced dari iPhone kamu</p>
+  </header>
+
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <span class="upload-icon">🔋</span>
+    <div class="upload-title">Drop file .synced di sini</div>
+    <div class="upload-sub">atau klik untuk pilih file &nbsp;·&nbsp; format: <span>Analytics-YYYY-MM-DD-*.synced</span></div>
+    <input type="file" id="fileInput" accept=".synced">
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none"></div>
+
+  <div id="historySection" style="display:none">
+    <div class="history-label">📂 Riwayat file sebelumnya</div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+  <div id="resultContainer" style="margin-top:32px"></div>
+
+</div>
+
+<script>
+// ── Storage for history ──────────────────────────────────────────────
+const HISTORY_KEY = 'batteryHistory';
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+}
+function saveHistory(entry) {
+  const h = getHistory().filter(x => x.date !== entry.date);
+  h.unshift(entry);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 10)));
+}
+
+// ── Parser ───────────────────────────────────────────────────────────
+function parseFile(text) {
+  const keys = ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'];
+  const result = {};
+  keys.forEach(k => {
+    const m = text.match(new RegExp(`"last_value_${k}":(\\d+)`));
+    if (m) result[k] = parseInt(m[1]);
+  });
+  return result;
+}
+
+function extractDate(filename) {
+  const m = filename.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : 'Unknown';
+}
+
+// ── Health utils ─────────────────────────────────────────────────────
+function healthColor(pct) {
+  if (pct >= 90) return 'var(--green)';
+  if (pct >= 80) return 'var(--orange)';
+  return 'var(--red)';
+}
+function healthBadge(pct) {
+  if (pct >= 90) return ['badge-green', 'Excellent 🔥'];
+  if (pct >= 80) return ['badge-orange', 'Good ✅'];
+  return ['badge-red', 'Perlu Perhatian ⚠️'];
+}
+function healthDesc(pct, cycle) {
+  if (pct >= 100) return `Baterai kamu bahkan <strong>melebihi spesifikasi pabrik</strong>! Ini normal di baterai baru yang lagi break-in. Kondisi terbaik yang mungkin ada.`;
+  if (pct >= 95) return `Baterai masih dalam kondisi <strong>prima banget</strong>. Nggak ada yang perlu dikhawatirkan sama sekali.`;
+  if (pct >= 90) return `Kondisi baterai <strong>masih sangat baik</strong>. Degradasi ringan yang wajar sesuai usia pemakaian.`;
+  if (pct >= 80) return `Baterai mulai menua tapi <strong>masih layak pakai</strong>. Mungkin mulai terasa baterai nggak sepanjang dulu.`;
+  return `Kapasitas baterai sudah <strong>di bawah 80%</strong>. Apple sendiri rekomendasiin ganti baterai di titik ini.`;
+}
+function cycleDesc(cycle) {
+  if (cycle < 50)   return `Masih <strong>sangat baru</strong> banget — ${cycle} siklus itu belum ada apa-apanya. Fase kalibrasi mungkin masih berjalan.`;
+  if (cycle < 150)  return `Siklus ${cycle} — baterai masih <strong>muda</strong>. Jauh dari batas 500 yang biasanya mulai terasa turun.`;
+  if (cycle < 300)  return `Siklus ${cycle} — memasuki <strong>fase pertengahan</strong>. Masih oke, pantau terus tiap bulan.`;
+  if (cycle < 500)  return `Siklus ${cycle} — sudah <strong>setengah jalan</strong> menuju 500. Health mulai perlu diperhatiin lebih.`;
+  return `Siklus ${cycle} — sudah <strong>melewati batas 500</strong> yang jadi patokan Apple. Pertimbangkan ganti baterai kalau health di bawah 80%.`;
+}
+
+// ── Ring SVG ─────────────────────────────────────────────────────────
+function ring(pct) {
+  const r = 40, c = 2*Math.PI*r;
+  const fill = Math.min(pct, 100);
+  const color = healthColor(pct);
+  return `<svg width="96" height="96" viewBox="0 0 96 96">
+    <circle cx="48" cy="48" r="${r}" stroke="rgba(255,255,255,0.06)" stroke-width="8" fill="none"/>
+    <circle cx="48" cy="48" r="${r}" stroke="${color}" stroke-width="8" fill="none"
+      stroke-dasharray="${c}" stroke-dashoffset="${c - (fill/100)*c}"
+      stroke-linecap="round" style="transition:stroke-dashoffset 1s ease"/>
+  </svg>`;
+}
+
+// ── Change indicator ─────────────────────────────────────────────────
+function changeBadge(cur, prev, unit='') {
+  if (prev == null) return '';
+  const diff = cur - prev;
+  if (diff > 0) return `<div class="stat-change up">▲ +${diff}${unit} dari sebelumnya</div>`;
+  if (diff < 0) return `<div class="stat-change down">▼ ${diff}${unit} dari sebelumnya</div>`;
+  return `<div class="stat-change same">— sama seperti sebelumnya</div>`;
+}
+
+// ── Render result ────────────────────────────────────────────────────
+function render(data, date, filename, prev) {
+  const pct  = data.MaximumCapacityPercent ?? 0;
+  const fcc  = data.MaximumFCC ?? 0;
+  const nom  = data.NominalChargeCapacity ?? 0;
+  const raw  = data.AppleRawMaxCapacity ?? 0;
+  const cyc  = data.CycleCount ?? 0;
+  const [badgeClass, badgeText] = healthBadge(pct);
+  const color = healthColor(pct);
+
+  const history = getHistory();
+  let trendHTML = '';
+  if (history.length > 1) {
+    const maxNom = Math.max(...history.map(h => h.nom));
+    trendHTML = `
+    <div class="trend-section">
+      <div class="trend-title">📈 Tren NominalCharge dari semua file</div>
+      ${history.map(h => `
+        <div class="trend-row">
+          <div class="trend-date">${h.date}</div>
+          <div class="trend-bar-wrap"><div class="trend-bar" style="width:${(h.nom/maxNom*100).toFixed(1)}%"></div></div>
+          <div class="trend-val" style="color:${healthColor(h.pct)}">${h.nom}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  document.getElementById('resultContainer').innerHTML = `
+  <div class="result">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Statistik Baterai iPhone</div>
+        <div class="card-date" style="margin-top:4px">📅 ${date} &nbsp;·&nbsp; ${filename}</div>
+      </div>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+    </div>
+
+    <div class="health-section">
+      <div class="health-ring">
+        ${ring(pct)}
+        <div class="health-ring-text">
+          <div class="health-num" style="color:${color}">${pct}</div>
+          <div class="health-pct">%</div>
+        </div>
+      </div>
+      <div class="health-info">
+        <h3>Kesehatan Baterai</h3>
+        <p>${healthDesc(pct, cyc)}</p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">MaximumFCC</div>
+        <div class="stat-value" style="color:${color}">${fcc}</div>
+        <div class="stat-unit">mAh</div>
+        ${changeBadge(fcc, prev?.MaximumFCC, ' mAh')}
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">NominalCharge</div>
+        <div class="stat-value">${nom}</div>
+        <div class="stat-unit">mAh</div>
+        ${changeBadge(nom, prev?.NominalChargeCapacity, ' mAh')}
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">AppleRawMax</div>
+        <div class="stat-value">${raw}</div>
+        <div class="stat-unit">mAh</div>
+        ${changeBadge(raw, prev?.AppleRawMaxCapacity, ' mAh')}
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Cycle Count</div>
+        <div class="stat-value">${cyc}</div>
+        <div class="stat-unit">siklus</div>
+        ${changeBadge(cyc, prev?.CycleCount, ' siklus')}
+      </div>
+    </div>
+
+    <div class="explanation">
+      <h4>// penjelasan</h4>
+      <div class="exp-item">
+        <div class="exp-key">MaximumFCC — ${fcc} mAh</div>
+        <div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem — "rekor terbaik" baterai kamu. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div>
+      </div>
+      <div class="exp-item">
+        <div class="exp-key">NominalChargeCapacity — ${nom} mAh</div>
+        <div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis — wajar naik-turun sedikit tiap hari.</div>
+      </div>
+      <div class="exp-item">
+        <div class="exp-key">AppleRawMaxCapacity — ${raw} mAh</div>
+        <div class="exp-val">Pembacaan mentah langsung dari chip baterai sebelum diproses sistem. Data paling "jujur" dari hardware-nya.</div>
+      </div>
+      <div class="exp-item">
+        <div class="exp-key">Cycle Count — ${cyc} siklus</div>
+        <div class="exp-val">${cycleDesc(cyc)}</div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      ${healthDesc(pct, cyc)} ${cycleDesc(cyc)}
+    </div>
+
+    ${trendHTML}
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Upload File Baru</button>
+      <button class="btn btn-ghost" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+  </div>`;
+}
+
+// ── Process file ─────────────────────────────────────────────────────
+function processText(text, filename) {
+  const data = parseFile(text);
+  if (!data.MaximumFCC && !data.NominalChargeCapacity) {
+    document.getElementById('errorBox').style.display = 'block';
+    document.getElementById('errorBox').textContent = '❌ Data baterai nggak ketemu di file ini. Pastikan file-nya bener ya (Analytics-YYYY-MM-DD-*.synced)';
+    return;
+  }
+  document.getElementById('errorBox').style.display = 'none';
+  const date = extractDate(filename);
+  const history = getHistory();
+  const prev = history.length ? history[0].raw : null;
+
+  saveHistory({ date, filename, nom: data.NominalChargeCapacity, pct: data.MaximumCapacityPercent, raw: data });
+  render(data, date, filename, prev);
+  renderHistory();
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => processText(e.target.result, file.name);
+  reader.readAsText(file);
+}
+
+// ── History UI ───────────────────────────────────────────────────────
+function renderHistory() {
+  const h = getHistory();
+  const sec = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+  if (h.length <= 1) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = h.map(entry => `
+    <div class="history-pill" onclick="reloadHistory('${entry.date}')">
+      <span class="dot"></span>${entry.date} · ${entry.nom} mAh · ${entry.pct}%
+    </div>`).join('');
+}
+
+function reloadHistory(date) {
+  const h = getHistory();
+  const entry = h.find(x => x.date === date);
+  if (!entry) return;
+  const idx = h.indexOf(entry);
+  const prev = h[idx + 1]?.raw ?? null;
+  render(entry.raw, entry.date, entry.filename || entry.date, prev);
+}
+
+// ── Event listeners ──────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// init history
+renderHistory();
+</script>
+</body>
+</html>
