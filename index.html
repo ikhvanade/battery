@@ -273,12 +273,31 @@ function saveHistory(entry) {
 
 // ── Parser ───────────────────────────────────────────────────────────
 function parseFile(text) {
-  const keys = ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'];
   const result = {};
+
+  // ── Format lama (iOS < 26.6): last_value_* keys ──────────────────
+  const keys = ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'];
   keys.forEach(k => {
     const m = text.match(new RegExp(`"last_value_${k}":(\\d+)`));
     if (m) result[k] = parseInt(m[1]);
   });
+
+  // ── Format baru (iOS 26.6+): maximumCapacityPercent di BHUI_NCC ──
+  // Cari di dalam block BHUI_NCC_iOSwatchOS
+  if (!result.MaximumCapacityPercent) {
+    const m = text.match(/"maximumCapacityPercent":(\d+)/);
+    if (m) result.MaximumCapacityPercent = parseInt(m[1]);
+  }
+
+  // CycleCount format baru: "daily_total_counter" di BatteryCycleCount block
+  if (!result.CycleCount) {
+    const cycleMatch = text.match(/"daily_total_counter":(\d+)/);
+    if (cycleMatch) result.CycleCount = parseInt(cycleMatch[1]);
+  }
+
+  // tandai format baru biar UI bisa kasih info yang tepat
+  result._newFormat = !result.MaximumFCC && !result.NominalChargeCapacity && !!result.MaximumCapacityPercent;
+
   return result;
 }
 
@@ -337,13 +356,17 @@ function changeBadge(cur, prev, unit='') {
 
 // ── Render result ────────────────────────────────────────────────────
 function render(data, date, filename, prev) {
-  const pct  = data.MaximumCapacityPercent ?? 0;
-  const fcc  = data.MaximumFCC ?? 0;
-  const nom  = data.NominalChargeCapacity ?? 0;
-  const raw  = data.AppleRawMaxCapacity ?? 0;
-  const cyc  = data.CycleCount ?? 0;
+  const pct     = data.MaximumCapacityPercent ?? 0;
+  const fcc     = data.MaximumFCC ?? null;
+  const nom     = data.NominalChargeCapacity ?? null;
+  const raw     = data.AppleRawMaxCapacity ?? null;
+  const cyc     = data.CycleCount ?? null;
+  const isNew   = data._newFormat;
   const [badgeClass, badgeText] = healthBadge(pct);
   const color = healthColor(pct);
+
+  // helper untuk tampilkan nilai atau "–" kalau nggak ada
+  const val = (v, unit='') => v != null ? `${v}${unit}` : '<span style="color:var(--muted);font-size:14px">— (iOS 26.6+)</span>';
 
   const history = getHistory();
   let trendHTML = '';
@@ -386,51 +409,59 @@ function render(data, date, filename, prev) {
       </div>
     </div>
 
+    ${isNew ? `
+    <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);border-left:1px solid rgba(255,159,10,0.25);border-right:1px solid rgba(255,159,10,0.25);padding:12px 20px;display:flex;gap:10px;align-items:flex-start">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.6">
+        <strong>Format iOS 26.6 terdeteksi</strong> — Apple ngubah struktur file analytics di update ini. Data detail (FCC, Nominal, RawMax) nggak tersedia di format baru, hanya BH% yang bisa dibaca. Data dari file lama tetap tampil di riwayat.
+      </div>
+    </div>` : ''}
+
     <div class="stats-grid">
       <div class="stat-box">
         <div class="stat-label">MaximumFCC</div>
-        <div class="stat-value" style="color:${color}">${fcc}</div>
-        <div class="stat-unit">mAh</div>
-        ${changeBadge(fcc, prev?.MaximumFCC, ' mAh')}
+        <div class="stat-value" style="color:${fcc ? color : 'var(--muted)'}">${val(fcc)}</div>
+        ${fcc ? `<div class="stat-unit">mAh</div>${changeBadge(fcc, prev?.MaximumFCC, ' mAh')}` : ''}
       </div>
       <div class="stat-box">
         <div class="stat-label">NominalCharge</div>
-        <div class="stat-value">${nom}</div>
-        <div class="stat-unit">mAh</div>
-        ${changeBadge(nom, prev?.NominalChargeCapacity, ' mAh')}
+        <div class="stat-value">${val(nom)}</div>
+        ${nom ? `<div class="stat-unit">mAh</div>${changeBadge(nom, prev?.NominalChargeCapacity, ' mAh')}` : ''}
       </div>
       <div class="stat-box">
         <div class="stat-label">AppleRawMax</div>
-        <div class="stat-value">${raw}</div>
-        <div class="stat-unit">mAh</div>
-        ${changeBadge(raw, prev?.AppleRawMaxCapacity, ' mAh')}
+        <div class="stat-value">${val(raw)}</div>
+        ${raw ? `<div class="stat-unit">mAh</div>${changeBadge(raw, prev?.AppleRawMaxCapacity, ' mAh')}` : ''}
       </div>
       <div class="stat-box">
         <div class="stat-label">Cycle Count</div>
-        <div class="stat-value">${cyc}</div>
-        <div class="stat-unit">siklus</div>
-        ${changeBadge(cyc, prev?.CycleCount, ' siklus')}
+        <div class="stat-value">${val(cyc)}</div>
+        ${cyc ? `<div class="stat-unit">siklus</div>${changeBadge(cyc, prev?.CycleCount, ' siklus')}` : ''}
       </div>
     </div>
 
     <div class="explanation">
       <h4>// penjelasan</h4>
-      <div class="exp-item">
+      ${fcc ? `<div class="exp-item">
         <div class="exp-key">MaximumFCC — ${fcc} mAh</div>
         <div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem — "rekor terbaik" baterai kamu. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div>
-      </div>
-      <div class="exp-item">
+      </div>` : ''}
+      ${nom ? `<div class="exp-item">
         <div class="exp-key">NominalChargeCapacity — ${nom} mAh</div>
         <div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis — wajar naik-turun sedikit tiap hari.</div>
-      </div>
-      <div class="exp-item">
+      </div>` : ''}
+      ${raw ? `<div class="exp-item">
         <div class="exp-key">AppleRawMaxCapacity — ${raw} mAh</div>
         <div class="exp-val">Pembacaan mentah langsung dari chip baterai sebelum diproses sistem. Data paling "jujur" dari hardware-nya.</div>
-      </div>
-      <div class="exp-item">
+      </div>` : ''}
+      ${cyc ? `<div class="exp-item">
         <div class="exp-key">Cycle Count — ${cyc} siklus</div>
         <div class="exp-val">${cycleDesc(cyc)}</div>
-      </div>
+      </div>` : ''}
+      ${isNew ? `<div class="exp-item">
+        <div class="exp-key" style="color:var(--orange)">Kenapa data terbatas?</div>
+        <div class="exp-val">iOS 26.6 mengubah format file analytics baterai. Apple nggak lagi menyertakan data detail di file ini. Hanya Battery Health % yang masih bisa dibaca. Pantau terus — mungkin ada format file lain yang muncul setelah beberapa hari.</div>
+      </div>` : ''}
     </div>
 
     <div class="verdict">
@@ -449,7 +480,7 @@ function render(data, date, filename, prev) {
 // ── Process file ─────────────────────────────────────────────────────
 function processText(text, filename) {
   const data = parseFile(text);
-  if (!data.MaximumFCC && !data.NominalChargeCapacity) {
+  if (!data.MaximumFCC && !data.NominalChargeCapacity && !data.MaximumCapacityPercent) {
     document.getElementById('errorBox').style.display = 'block';
     document.getElementById('errorBox').textContent = '❌ Data baterai nggak ketemu di file ini. Pastikan file-nya bener ya (Analytics-YYYY-MM-DD-*.synced)';
     return;
@@ -459,7 +490,8 @@ function processText(text, filename) {
   const history = getHistory();
   const prev = history.length ? history[0].raw : null;
 
-  saveHistory({ date, filename, nom: data.NominalChargeCapacity, pct: data.MaximumCapacityPercent, raw: data });
+  const nomVal = data.NominalChargeCapacity || prev?.NominalChargeCapacity || 0;
+  saveHistory({ date, filename, nom: nomVal, pct: data.MaximumCapacityPercent, raw: data });
   render(data, date, filename, prev);
   renderHistory();
 }
