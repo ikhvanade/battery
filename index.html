@@ -94,6 +94,18 @@
 
   /* History pills */
   .history-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; margin: 32px 0 12px; text-transform: uppercase; }
+
+  /* Month filter tabs */
+  .month-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .month-tab {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 100px; padding: 4px 12px; cursor: pointer;
+    transition: all 0.2s; color: var(--muted);
+  }
+  .month-tab:hover { border-color: var(--green-border); color: var(--green); }
+  .month-tab.active { background: var(--green-dim); border-color: var(--green-border); color: var(--green); font-weight: 500; }
+
   .history-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
   .history-pill {
     font-family: var(--mono); font-size: 11px;
@@ -103,7 +115,9 @@
     display: flex; align-items: center; gap: 6px;
   }
   .history-pill:hover { border-color: var(--green-border); color: var(--green); }
+  .history-pill.active-pill { border-color: var(--green-border); color: var(--green); background: var(--green-dim); }
   .history-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+  .history-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 8px 0; }
 
   /* Result card */
   .result { animation: fadeUp 0.5s ease forwards; }
@@ -251,6 +265,7 @@
 
   <div id="historySection" style="display:none">
     <div class="history-label">📂 Riwayat file sebelumnya</div>
+    <div class="month-filter" id="monthFilter"></div>
     <div class="history-list" id="historyList"></div>
   </div>
 
@@ -261,6 +276,7 @@
 <script>
 // ── Storage for history ──────────────────────────────────────────────
 const HISTORY_KEY = 'batteryHistory';
+let activeMonth = 'all'; // state filter bulan aktif
 
 function getHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
@@ -268,7 +284,20 @@ function getHistory() {
 function saveHistory(entry) {
   const h = getHistory().filter(x => x.date !== entry.date);
   h.unshift(entry);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 10)));
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 200))); // naikin limit ke 200
+}
+
+// helper: ambil "YYYY-MM" dari date string
+function getYearMonth(dateStr) {
+  return dateStr ? dateStr.slice(0, 7) : '';
+}
+
+// helper: format label bulan "Jul 2026"
+function formatMonthLabel(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-');
+  const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+  return `${names[parseInt(m)-1]} ${y}`;
 }
 
 // ── Parser ───────────────────────────────────────────────────────────
@@ -504,16 +533,44 @@ function handleFile(file) {
 }
 
 // ── History UI ───────────────────────────────────────────────────────
-function renderHistory() {
+function renderHistory(activeDateHighlight = null) {
   const h = getHistory();
   const sec = document.getElementById('historySection');
   const list = document.getElementById('historyList');
+  const filterEl = document.getElementById('monthFilter');
+
   if (h.length <= 1) { sec.style.display = 'none'; return; }
   sec.style.display = 'block';
-  list.innerHTML = h.map(entry => `
-    <div class="history-pill" onclick="reloadHistory('${entry.date}')">
-      <span class="dot"></span>${entry.date} · ${entry.nom} mAh · ${entry.pct}%
+
+  // Kumpulin semua bulan unik, urut dari terbaru
+  const months = [...new Set(h.map(e => getYearMonth(e.date)))].sort((a,b) => b.localeCompare(a));
+
+  // Render tab bulan
+  filterEl.innerHTML = `
+    <div class="month-tab ${activeMonth === 'all' ? 'active' : ''}" onclick="setMonthFilter('all')">Semua</div>
+    ${months.map(ym => `
+      <div class="month-tab ${activeMonth === ym ? 'active' : ''}" onclick="setMonthFilter('${ym}')">
+        ${formatMonthLabel(ym)}
+      </div>`).join('')}
+  `;
+
+  // Filter history berdasarkan bulan aktif
+  const filtered = activeMonth === 'all' ? h : h.filter(e => getYearMonth(e.date) === activeMonth);
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="history-empty">— nggak ada data di bulan ini</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(entry => `
+    <div class="history-pill ${activeDateHighlight === entry.date ? 'active-pill' : ''}" onclick="reloadHistory('${entry.date}')">
+      <span class="dot"></span>${entry.date} · ${entry.nom || '–'} mAh · ${entry.pct}%
     </div>`).join('');
+}
+
+function setMonthFilter(ym) {
+  activeMonth = ym;
+  renderHistory();
 }
 
 function reloadHistory(date) {
@@ -523,6 +580,7 @@ function reloadHistory(date) {
   const idx = h.indexOf(entry);
   const prev = h[idx + 1]?.raw ?? null;
   render(entry.raw, entry.date, entry.filename || entry.date, prev);
+  renderHistory(date); // highlight pill yang aktif
 }
 
 // ── Event listeners ──────────────────────────────────────────────────
