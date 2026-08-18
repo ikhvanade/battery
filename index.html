@@ -497,19 +497,57 @@ function render(data, date, filename, prev) {
 // ── Process file ─────────────────────────────────────────────────────
 function processText(text, filename) {
   const data = parseFile(text);
-
-  // Kalau formatType 'none' = beneran nggak ada data baterai sama sekali
-  if (data._formatType === 'none') {
-    document.getElementById('errorBox').style.display = 'block';
-    document.getElementById('errorBox').textContent = '❌ Data baterai nggak ketemu di file ini. File ini berisi data aktivitas umum, bukan data baterai. Coba file dengan nomor _0002_, _0004_, atau _000_.';
-    return;
-  }
-
-  document.getElementById('errorBox').style.display = 'none';
   const date = extractDate(filename);
   const history = getHistory();
   const prev = history.length ? history[0].raw : null;
 
+  // Deteksi rolloverReason osUpdate = file generate saat update iOS
+  const isOsUpdateFile = /"rolloverReason":"osUpdate"/.test(text);
+
+  // Kalau formatType 'none' = nggak ada data baterai
+  if (data._formatType === 'none') {
+    document.getElementById('errorBox').style.display = 'none';
+
+    // Tampilkan data terakhir dari history + notice
+    const lastEntry = history.length ? history[0] : null;
+    const noticeMsg = isOsUpdateFile
+      ? `File <strong>${filename}</strong> di-generate saat update iOS — data baterai direset oleh sistem dan tidak tersedia di file ini.`
+      : `File <strong>${filename}</strong> tidak mengandung data baterai (berisi data aktivitas umum).`;
+
+    if (lastEntry && lastEntry.raw) {
+      // Render data terakhir yang valid dengan banner notice
+      document.getElementById('resultContainer').innerHTML = `
+        <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">⚠️</span>
+          <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
+            ${noticeMsg}<br>
+            <strong>Menampilkan data terakhir yang valid (${lastEntry.date}).</strong>
+          </div>
+        </div>`;
+      // Render data history terakhir
+      const idx = 0;
+      const prevRaw = history[1]?.raw ?? null;
+      render(lastEntry.raw, lastEntry.date, lastEntry.filename || lastEntry.date, prevRaw);
+      // Prepend notice ke result (render udah replace resultContainer, jadi inject notice dulu)
+      const existing = document.getElementById('resultContainer').innerHTML;
+      document.getElementById('resultContainer').innerHTML = `
+        <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px;flex-shrink:0">⚠️</span>
+          <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
+            ${noticeMsg}<br>
+            <strong>Menampilkan data terakhir yang valid (${lastEntry.date}).</strong>
+          </div>
+        </div>` + existing;
+    } else {
+      // Belum ada history sama sekali
+      document.getElementById('errorBox').style.display = 'block';
+      document.getElementById('errorBox').textContent = `❌ ${isOsUpdateFile ? 'File ini di-generate saat update iOS — data baterai tidak tersedia. Upload file lain dengan tanggal sebelum update.' : 'Data baterai tidak ditemukan. Coba file dengan nomor _0002_, _0004_, atau _000_.'}`;
+    }
+    renderHistory();
+    return;
+  }
+
+  document.getElementById('errorBox').style.display = 'none';
   const nomVal = data.NominalChargeCapacity || prev?.NominalChargeCapacity || 0;
   saveHistory({ date, filename, nom: nomVal, pct: data.MaximumCapacityPercent, raw: data });
   render(data, date, filename, prev);
