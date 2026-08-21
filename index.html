@@ -304,28 +304,61 @@ function formatMonthLabel(ym) {
 function parseFile(text) {
   const result = {};
 
-  // ── Format lama (iOS < 26.6): last_value_* di BatteryConfigValueHistogramFinal_V2 ──
+  // ── Format lama (iOS < 26.6): BatteryConfigValueHistogramFinal_V2 ──
   const keys = ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'];
   keys.forEach(k => {
-    const m = text.match(new RegExp(`"last_value_${k}":(\\d+)`));
+    const m = text.match(new RegExp('"last_value_' + k + '":(\\d+)'));
     if (m) result[k] = parseInt(m[1]);
   });
 
-  // ── Format iOS 26.6+: BatteryConfigValueHistogramFinal_V2 udah dihapus Apple ──
-  // Coba cari maximumCapacityPercent yang masih mungkin muncul di block lain
+  // BH% dari maximumCapacityPercent (format baru)
   if (!result.MaximumCapacityPercent) {
     const m = text.match(/"maximumCapacityPercent":(\d+)/);
     if (m) result.MaximumCapacityPercent = parseInt(m[1]);
   }
 
-  // Tandai format file
-  // - fullFormat: punya semua data (iOS < 26.6)
-  // - partialFormat: cuma BH% (iOS 26.6 transisi)
-  // - noData: nggak ada data baterai sama sekali (iOS 26.6 file aktivitas)
-  const hasDetail = !!(result.MaximumFCC || result.NominalChargeCapacity);
-  const hasBH = !!result.MaximumCapacityPercent;
+  // batteryTrusted — baterai original Apple
+  const trustedM = text.match(/"batteryTrusted":(true|false)/);
+  result.batteryTrusted = trustedM ? trustedM[1] === 'true' : null;
 
-  result._formatType = hasDetail ? 'full' : (hasBH ? 'partial' : 'none');
+  // BatteryCellDisconnect — 0 = bagus
+  const disconnectM = text.match(/"BatteryCellDisconnectCount_Last_Value_Of_Day"[\s\S]*?"last_value_value":(\d+)/);
+  result.cellDisconnect = disconnectM ? parseInt(disconnectM[1]) : null;
+
+  // BatteryAuthFailure
+  const authCommM = text.match(/"BatteryAuthFailureReasons_ASBM"[\s\S]*?"communication_error":(null|\d+)/);
+  const authCoprocM = text.match(/"BatteryAuthFailureReasons_ASBM"[\s\S]*?"coprocerror":(null|\d+)/);
+  if (authCommM || authCoprocM) {
+    result.authError = (authCommM && authCommM[1] !== 'null') || (authCoprocM && authCoprocM[1] !== 'null');
+  }
+
+  // BatteryTimeAtHighSoc bins
+  const highSocBins = {};
+  const highSocRegex = /"BatteryTimeAtHighSocLast"[\s\S]*?"bin":"(\d+)","last_value_value":(\d+)/g;
+  let hsMatch;
+  while ((hsMatch = highSocRegex.exec(text)) !== null) {
+    highSocBins[parseInt(hsMatch[1])] = parseInt(hsMatch[2]);
+  }
+  result.highSocBins = Object.keys(highSocBins).length > 0 ? highSocBins : null;
+
+  // LowVoltageResidency — total semua bin, 0 = bagus
+  const lvRegex = /"Battery_LowVoltageResidencyCountersLastValue"[\s\S]*?"last_value_value":(\d+)/g;
+  let lvMatch, lvTotal = 0, lvFound = false;
+  while ((lvMatch = lvRegex.exec(text)) !== null) {
+    lvTotal += parseInt(lvMatch[1]);
+    lvFound = true;
+  }
+  result.lowVoltageTotal = lvFound ? lvTotal : null;
+
+  // rolloverReason
+  const rolloverM = text.match(/"rolloverReason":"([^"]+)"/);
+  result.rolloverReason = rolloverM ? rolloverM[1] : null;
+
+  // Tandai format file
+  const hasDetail  = !!(result.MaximumFCC || result.NominalChargeCapacity);
+  const hasBH      = !!result.MaximumCapacityPercent;
+  const hasNewData = result.batteryTrusted !== null || result.highSocBins !== null || result.cellDisconnect !== null;
+  result._formatType = hasDetail ? 'full' : (hasBH || hasNewData ? 'partial' : 'none');
 
   return result;
 }
@@ -374,12 +407,33 @@ function ring(pct) {
   </svg>`;
 }
 
+// ── HighSoc Chart (format baru iOS 26.6) ──────────────────────────
+function renderHighSocChart(bins) {
+  if (!bins) return '';
+  const labels = ['<20%','20-30%','30-40%','40-50%','50-60%','60-70%','70-80%','80-90%','90-95%','95-100%'];
+  const colors = ['#444','#555','#666','#777','#888','#999','var(--green)','var(--orange)','#ff6b35','var(--red)'];
+  const maxVal = Math.max(...Object.values(bins), 1);
+  const rows = Object.entries(bins).sort((a,b)=>parseInt(a[0])-parseInt(b[0])).map(([bin, val]) => {
+    const b = parseInt(bin);
+    const pct = Math.round(val / maxVal * 100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+      + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:62px;text-align:right;flex-shrink:0">' + (labels[b]||b) + '</div>'
+      + '<div style="flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:14px;overflow:hidden">'
+      + '<div style="width:' + pct + '%;height:100%;background:' + (colors[b]||'var(--green)') + ';border-radius:3px"></div></div>'
+      + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:28px;flex-shrink:0">' + val + 'm</div>'
+      + '</div>';
+  }).join('');
+  return '<div class="exp-item"><div class="exp-key">Distribusi Waktu di Level Baterai</div>'
+    + '<div class="exp-val" style="margin-bottom:10px">Berapa menit baterai berada di tiap rentang level kemarin. Hijau (70-80%) = zona charging ideal.</div>'
+    + rows + '</div>';
+}
+
 // ── Change indicator ─────────────────────────────────────────────────
 function changeBadge(cur, prev, unit='') {
   if (prev == null) return '';
   const diff = cur - prev;
-  if (diff > 0) return `<div class="stat-change up">▲ +${diff}${unit} dari sebelumnya</div>`;
-  if (diff < 0) return `<div class="stat-change down">▼ ${diff}${unit} dari sebelumnya</div>`;
+  if (diff > 0) return '<div class="stat-change up">▲ +' + diff + unit + ' dari sebelumnya</div>';
+  if (diff < 0) return '<div class="stat-change down">▼ ' + diff + unit + ' dari sebelumnya</div>';
   return `<div class="stat-change same">— sama seperti sebelumnya</div>`;
 }
 
@@ -439,13 +493,12 @@ function render(data, date, filename, prev) {
       </div>
     </div>
 
-    ${isPartial ? `
-    <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);border-left:1px solid rgba(255,159,10,0.25);border-right:1px solid rgba(255,159,10,0.25);padding:14px 20px;display:flex;gap:10px;align-items:flex-start">
+    ${isPartial && !fcc ? `
+    <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);padding:14px 20px;display:flex;gap:10px;align-items:flex-start">
       <span style="font-size:18px;flex-shrink:0">⚠️</span>
       <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
         <strong style="font-size:12px">Format iOS 26.6+ terdeteksi</strong><br>
-        Apple menghapus block <code>BatteryConfigValueHistogramFinal_V2</code> di update ini — data detail seperti FCC, NominalCharge, RawMax, dan CycleCount nggak lagi tersedia di file analytics. Hanya <strong>Battery Health %</strong> yang masih bisa dibaca.<br><br>
-        Coba upload file dengan nomor <strong>_0004_</strong> atau <strong>_000_</strong> kalau masih ada di folder Analytics — itu mungkin masih punya data lengkap.
+        Data detail (FCC, NominalCharge, CycleCount) sudah tidak tersedia. App menampilkan data yang masih bisa dibaca dari format baru ini.
       </div>
     </div>` : ''}
 
@@ -474,11 +527,15 @@ function render(data, date, filename, prev) {
 
     <div class="explanation">
       <h4>// penjelasan</h4>
-      ${fcc ? `<div class="exp-item"><div class="exp-key">MaximumFCC — ${fcc} mAh</div><div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem — "rekor terbaik" baterai kamu. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div></div>` : ''}
-      ${nom ? `<div class="exp-item"><div class="exp-key">NominalChargeCapacity — ${nom} mAh</div><div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis — wajar naik-turun sedikit tiap hari.</div></div>` : ''}
-      ${raw ? `<div class="exp-item"><div class="exp-key">AppleRawMaxCapacity — ${raw} mAh</div><div class="exp-val">Pembacaan mentah langsung dari chip baterai sebelum diproses sistem. Data paling "jujur" dari hardware-nya.</div></div>` : ''}
+      ${fcc ? `<div class="exp-item"><div class="exp-key">MaximumFCC — ${fcc} mAh</div><div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div></div>` : ''}
+      ${nom ? `<div class="exp-item"><div class="exp-key">NominalChargeCapacity — ${nom} mAh</div><div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis.</div></div>` : ''}
+      ${raw ? `<div class="exp-item"><div class="exp-key">AppleRawMaxCapacity — ${raw} mAh</div><div class="exp-val">Pembacaan mentah langsung dari chip baterai. Data paling "jujur" dari hardware-nya.</div></div>` : ''}
       ${cyc ? `<div class="exp-item"><div class="exp-key">Cycle Count — ${cyc} siklus</div><div class="exp-val">${cycleDesc(cyc)}</div></div>` : ''}
-      ${isPartial ? `<div class="exp-item"><div class="exp-key" style="color:var(--orange)">Kenapa data terbatas?</div><div class="exp-val">Apple menghapus data baterai detail dari file analytics sejak iOS 26.6. Ini keputusan Apple, bukan bug app ini. Hanya BH% yang masih bisa dibaca dari file yang tersedia saat ini.</div></div>` : ''}
+      ${data.batteryTrusted !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.batteryTrusted ? 'var(--green)' : 'var(--red)'}">Baterai Original Apple — ${data.batteryTrusted ? '✅ Ya' : '❌ Tidak terdeteksi'}</div><div class="exp-val">${data.batteryTrusted ? 'Baterai kamu diakui Apple sebagai komponen original yang sah.' : 'Baterai tidak diakui sebagai original Apple — mungkin sudah pernah diganti dengan part non-original.'}</div></div>` : ''}
+      ${data.cellDisconnect !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.cellDisconnect === 0 ? 'var(--green)' : 'var(--orange)'}">Cell Disconnect — ${data.cellDisconnect === 0 ? '✅ Normal (0)' : '⚠️ ' + data.cellDisconnect + ' kali'}</div><div class="exp-val">${data.cellDisconnect === 0 ? 'Tidak ada sel baterai yang terputus — kondisi fisik baterai baik.' : 'Ada ' + data.cellDisconnect + ' kejadian sel disconnect. Bisa jadi tanda masalah fisik pada baterai.'}</div></div>` : ''}
+      ${data.lowVoltageTotal !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.lowVoltageTotal === 0 ? 'var(--green)' : 'var(--orange)'}">Low Voltage Events — ${data.lowVoltageTotal === 0 ? '✅ Normal (0)' : '⚠️ ' + data.lowVoltageTotal}</div><div class="exp-val">${data.lowVoltageTotal === 0 ? 'Tidak ada kejadian voltage drop — baterai stabil secara elektrik.' : 'Ada kejadian voltage drop. Pantau terus, bisa jadi tanda degradasi sel.'}</div></div>` : ''}
+      ${data.highSocBins ? renderHighSocChart(data.highSocBins) : ''}
+      ${isPartial && !data.highSocBins && data.batteryTrusted === null ? `<div class="exp-item"><div class="exp-key" style="color:var(--orange)">Kenapa data terbatas?</div><div class="exp-val">Apple menghapus data baterai detail (FCC, Nominal, CycleCount) dari file analytics sejak iOS 26.6. Ini keputusan Apple, bukan bug app ini.</div></div>` : ''}
     </div>
 
     <div class="verdict">
