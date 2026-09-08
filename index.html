@@ -7,756 +7,615 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface2: #1a1a26;
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a26;
     --border: rgba(255,255,255,0.07);
-    --green: #00e87a;
-    --green-dim: rgba(0,232,122,0.12);
-    --green-border: rgba(0,232,122,0.25);
-    --orange: #ff9f0a;
-    --red: #ff453a;
-    --text: #f0f0f8;
-    --muted: rgba(240,240,248,0.45);
-    --mono: 'DM Mono', monospace;
-    --sans: 'Syne', sans-serif;
+    --green: #00e87a; --green-dim: rgba(0,232,122,0.12); --green-border: rgba(0,232,122,0.25);
+    --orange: #ff9f0a; --red: #ff453a; --blue: #0a84ff;
+    --text: #f0f0f8; --muted: rgba(240,240,248,0.45);
+    --mono: 'DM Mono', monospace; --sans: 'Syne', sans-serif;
   }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px 20px 80px;
-  }
-
-  /* noise overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.6;
-  }
-
-  .wrapper { position: relative; z-index: 1; width: 100%; max-width: 560px; }
-
-  /* Header */
-  header { text-align: center; margin-bottom: 48px; }
-  .logo { 
-    display: inline-flex; align-items: center; gap: 10px;
-    background: var(--green-dim); border: 1px solid var(--green-border);
-    border-radius: 100px; padding: 6px 16px; margin-bottom: 24px;
-    font-family: var(--mono); font-size: 11px; color: var(--green); letter-spacing: 1px;
-  }
-  .logo-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:40px 20px 80px; }
+  body::before { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; opacity:0.6; }
+  .wrapper { position:relative; z-index:1; width:100%; max-width:560px; }
+  header { text-align:center; margin-bottom:48px; }
+  .logo { display:inline-flex; align-items:center; gap:10px; background:var(--green-dim); border:1px solid var(--green-border); border-radius:100px; padding:6px 16px; margin-bottom:24px; font-family:var(--mono); font-size:11px; color:var(--green); letter-spacing:1px; }
+  .logo-dot { width:6px; height:6px; background:var(--green); border-radius:50%; animation:pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
-  h1 { font-size: clamp(28px, 6vw, 40px); font-weight: 800; line-height: 1.1; letter-spacing: -1px; }
-  h1 span { color: var(--green); }
-  .subtitle { color: var(--muted); font-size: 14px; margin-top: 10px; font-family: var(--mono); }
-
-  /* Upload zone */
-  .upload-zone {
-    border: 2px dashed var(--border);
-    border-radius: 20px;
-    padding: 48px 32px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background: var(--surface);
-    position: relative;
-    overflow: hidden;
-  }
-  .upload-zone::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 0%, rgba(0,232,122,0.05) 0%, transparent 70%);
-    pointer-events: none;
-  }
-  .upload-zone:hover, .upload-zone.drag { 
-    border-color: var(--green-border); 
-    background: var(--surface2);
-  }
-  .upload-zone.drag { transform: scale(1.01); }
-  .upload-icon { font-size: 48px; margin-bottom: 16px; display: block; }
-  .upload-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-  .upload-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .upload-sub span { color: var(--green); }
-  #fileInput { display: none; }
-
-  /* History pills */
-  .history-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; margin: 32px 0 12px; text-transform: uppercase; }
-
-  /* Month filter tabs */
-  .month-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-  .month-tab {
-    font-family: var(--mono); font-size: 11px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 100px; padding: 4px 12px; cursor: pointer;
-    transition: all 0.2s; color: var(--muted);
-  }
-  .month-tab:hover { border-color: var(--green-border); color: var(--green); }
-  .month-tab.active { background: var(--green-dim); border-color: var(--green-border); color: var(--green); font-weight: 500; }
-
-  .history-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
-  .history-pill {
-    font-family: var(--mono); font-size: 11px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 100px; padding: 4px 12px; cursor: pointer;
-    transition: all 0.2s;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .history-pill:hover { border-color: var(--green-border); color: var(--green); }
-  .history-pill.active-pill { border-color: var(--green-border); color: var(--green); background: var(--green-dim); }
-  .history-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
-  .history-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 8px 0; }
-
-  /* Result card */
-  .result { animation: fadeUp 0.5s ease forwards; }
+  h1 { font-size:clamp(28px,6vw,40px); font-weight:800; line-height:1.1; letter-spacing:-1px; }
+  h1 span { color:var(--green); }
+  .subtitle { color:var(--muted); font-size:14px; margin-top:10px; font-family:var(--mono); }
+  .upload-zone { border:2px dashed var(--border); border-radius:20px; padding:48px 32px; text-align:center; cursor:pointer; transition:all 0.3s ease; background:var(--surface); position:relative; overflow:hidden; }
+  .upload-zone::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 50% 0%,rgba(0,232,122,0.05) 0%,transparent 70%); pointer-events:none; }
+  .upload-zone:hover,.upload-zone.drag { border-color:var(--green-border); background:var(--surface2); }
+  .upload-zone.drag { transform:scale(1.01); }
+  .upload-icon { font-size:48px; margin-bottom:16px; display:block; }
+  .upload-title { font-size:18px; font-weight:700; margin-bottom:8px; }
+  .upload-sub { font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .upload-sub span { color:var(--green); }
+  #fileInput { display:none; }
+  .history-label { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:1px; margin:32px 0 12px; text-transform:uppercase; }
+  .month-filter { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .month-tab { font-family:var(--mono); font-size:11px; background:var(--surface2); border:1px solid var(--border); border-radius:100px; padding:4px 12px; cursor:pointer; transition:all 0.2s; color:var(--muted); }
+  .month-tab:hover { border-color:var(--green-border); color:var(--green); }
+  .month-tab.active { background:var(--green-dim); border-color:var(--green-border); color:var(--green); font-weight:500; }
+  .history-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:32px; }
+  .history-pill { font-family:var(--mono); font-size:11px; background:var(--surface2); border:1px solid var(--border); border-radius:100px; padding:4px 12px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:6px; }
+  .history-pill:hover { border-color:var(--green-border); color:var(--green); }
+  .history-pill.active-pill { border-color:var(--green-border); color:var(--green); background:var(--green-dim); }
+  .history-pill .dot { width:5px; height:5px; border-radius:50%; background:var(--green); }
+  .history-empty { font-family:var(--mono); font-size:11px; color:var(--muted); padding:8px 0; }
+  .result { animation:fadeUp 0.5s ease forwards; }
   @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-
-  .card-header {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px 20px 0 0;
-    padding: 20px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .card-title { font-size: 16px; font-weight: 700; }
-  .card-date { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .badge {
-    font-family: var(--mono); font-size: 11px;
-    padding: 4px 12px; border-radius: 100px; font-weight: 500;
-  }
-  .badge-green { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
-  .badge-orange { background: rgba(255,159,10,0.12); color: var(--orange); border: 1px solid rgba(255,159,10,0.25); }
-  .badge-red { background: rgba(255,69,58,0.12); color: var(--red); border: 1px solid rgba(255,69,58,0.25); }
-
-  /* Health big number */
-  .health-section {
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    padding: 28px 24px;
-    display: flex; align-items: center; gap: 24px;
-  }
-  .health-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
-  .health-ring svg { transform: rotate(-90deg); }
-  .health-ring-text {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-  }
-  .health-num { font-size: 24px; font-weight: 800; color: var(--green); line-height: 1; }
-  .health-pct { font-family: var(--mono); font-size: 10px; color: var(--muted); }
-  .health-info h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-  .health-info p { font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.6; }
-
+  .card-header { background:var(--surface); border:1px solid var(--border); border-radius:20px 20px 0 0; padding:20px 24px; display:flex; align-items:center; justify-content:space-between; }
+  .card-title { font-size:16px; font-weight:700; }
+  .card-date { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .badge { font-family:var(--mono); font-size:11px; padding:4px 12px; border-radius:100px; font-weight:500; }
+  .badge-green { background:var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+  .badge-orange { background:rgba(255,159,10,0.12); color:var(--orange); border:1px solid rgba(255,159,10,0.25); }
+  .badge-red { background:rgba(255,69,58,0.12); color:var(--red); border:1px solid rgba(255,69,58,0.25); }
+  .health-section { background:var(--surface); border-left:1px solid var(--border); border-right:1px solid var(--border); padding:28px 24px; display:flex; align-items:center; gap:24px; }
+  .health-ring { position:relative; width:96px; height:96px; flex-shrink:0; }
+  .health-ring svg { transform:rotate(-90deg); }
+  .health-ring-text { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .health-num { font-size:24px; font-weight:800; line-height:1; }
+  .health-pct { font-family:var(--mono); font-size:10px; color:var(--muted); }
+  .health-info h3 { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .health-info p { font-family:var(--mono); font-size:12px; color:var(--muted); line-height:1.6; }
+  /* Score bar */
+  .score-section { background:var(--surface); border-left:1px solid var(--border); border-right:1px solid var(--border); border-top:1px solid var(--border); padding:18px 24px; }
+  .score-label { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+  .score-bar-wrap { background:rgba(255,255,255,0.06); border-radius:8px; height:20px; overflow:hidden; margin-bottom:6px; }
+  .score-bar { height:100%; border-radius:8px; transition:width 1s ease; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; }
+  .score-bar span { font-family:var(--mono); font-size:11px; font-weight:700; color:#000; }
+  .score-desc { font-family:var(--mono); font-size:11px; color:var(--muted); }
   /* Stats grid */
-  .stats-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 1px; background: var(--border);
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-  }
-  .stat-box {
-    background: var(--surface);
-    padding: 18px 20px;
-  }
-  .stat-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
-  .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
-  .stat-unit { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .stat-change { font-family: var(--mono); font-size: 10px; margin-top: 4px; }
-  .up { color: var(--green); }
-  .down { color: var(--orange); }
-  .same { color: var(--muted); }
-
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border); border-left:1px solid var(--border); border-right:1px solid var(--border); }
+  .stat-box { background:var(--surface); padding:18px 20px; }
+  .stat-label { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:6px; }
+  .stat-value { font-size:26px; font-weight:700; line-height:1; }
+  .stat-unit { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:2px; }
+  .stat-change { font-family:var(--mono); font-size:10px; margin-top:4px; }
+  .up { color:var(--green); } .down { color:var(--orange); } .same { color:var(--muted); }
+  /* Drop alert */
+  .drop-alert { background:rgba(255,69,58,0.08); border:1px solid rgba(255,69,58,0.3); border-left:1px solid rgba(255,69,58,0.3); border-right:1px solid rgba(255,69,58,0.3); padding:14px 20px; display:flex; gap:10px; align-items:flex-start; }
   /* Explanation */
-  .explanation {
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    border-top: 1px solid var(--border);
-    padding: 20px 24px;
-  }
-  .explanation h4 { font-size: 13px; font-weight: 700; margin-bottom: 14px; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-  .exp-item { margin-bottom: 14px; }
-  .exp-item:last-child { margin-bottom: 0; }
-  .exp-key { font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 3px; }
-  .exp-val { font-size: 13px; color: var(--muted); line-height: 1.6; }
-
-  /* Summary verdict */
-  .verdict {
-    background: var(--green-dim);
-    border: 1px solid var(--green-border);
-    border-radius: 0 0 20px 20px;
-    padding: 18px 24px;
-    font-size: 14px; line-height: 1.6;
-  }
-  .verdict strong { color: var(--green); }
-
-  /* Trend section */
-  .trend-section {
-    margin-top: 24px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 20px 24px;
-  }
-  .trend-title { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
-  .trend-row {
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 0; border-bottom: 1px solid var(--border);
-  }
-  .trend-row:last-child { border-bottom: none; }
-  .trend-date { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 80px; flex-shrink: 0; }
-  .trend-bar-wrap { flex: 1; background: rgba(255,255,255,0.05); border-radius: 4px; height: 6px; overflow: hidden; }
-  .trend-bar { height: 100%; border-radius: 4px; background: var(--green); transition: width 0.6s ease; }
-  .trend-val { font-family: var(--mono); font-size: 11px; width: 52px; text-align: right; flex-shrink: 0; }
-
+  .explanation { background:var(--surface); border-left:1px solid var(--border); border-right:1px solid var(--border); border-top:1px solid var(--border); padding:20px 24px; }
+  .explanation h4 { font-size:13px; font-weight:700; margin-bottom:14px; font-family:var(--mono); color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .exp-item { margin-bottom:14px; }
+  .exp-item:last-child { margin-bottom:0; }
+  .exp-key { font-size:13px; font-weight:700; color:var(--green); margin-bottom:3px; }
+  .exp-val { font-size:13px; color:var(--muted); line-height:1.6; }
+  /* Verdict */
+  .verdict { background:var(--green-dim); border:1px solid var(--green-border); border-radius:0 0 20px 20px; padding:18px 24px; font-size:14px; line-height:1.6; }
+  .verdict strong { color:var(--green); }
+  /* Cards section */
+  .cards-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }
+  .info-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; }
+  /* BH Predict card */
+  .predict-card { border-radius:16px; padding:18px 20px; margin-top:16px; }
+  /* Summary card */
+  .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px 24px; margin-top:16px; }
+  .summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+  .summary-item { }
+  .summary-item-label { font-family:var(--mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+  .summary-item-val { font-size:18px; font-weight:700; }
+  /* Chart */
+  .chart-section { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px 24px; margin-top:16px; }
+  .chart-title { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:16px; }
+  .chart-wrap { position:relative; height:120px; }
+  canvas { width:100%!important; }
+  /* Trend */
+  .trend-section { margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px 24px; }
+  .trend-title { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:16px; }
+  .trend-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .trend-row:last-child { border-bottom:none; }
+  .trend-date { font-family:var(--mono); font-size:10px; color:var(--muted); width:80px; flex-shrink:0; }
+  .trend-bar-wrap { flex:1; background:rgba(255,255,255,0.05); border-radius:4px; height:6px; overflow:hidden; }
+  .trend-bar { height:100%; border-radius:4px; background:var(--green); }
+  .trend-val { font-family:var(--mono); font-size:10px; width:52px; text-align:right; flex-shrink:0; }
+  /* Notes */
+  .notes-section { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:20px 24px; margin-top:16px; }
+  .notes-title { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:12px; }
+  .notes-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-family:var(--mono); font-size:12px; resize:none; outline:none; transition:border 0.2s; }
+  .notes-input:focus { border-color:var(--green-border); }
+  .notes-save { margin-top:8px; padding:8px 16px; background:var(--green-dim); border:1px solid var(--green-border); border-radius:8px; color:var(--green); font-family:var(--mono); font-size:11px; cursor:pointer; transition:all 0.2s; }
+  .notes-save:hover { background:var(--green); color:#000; }
+  .notes-saved { font-family:var(--mono); font-size:11px; color:var(--green); margin-left:8px; opacity:0; transition:opacity 0.3s; }
   /* Actions */
-  .actions { display: flex; gap: 10px; margin-top: 20px; }
-  .btn {
-    flex: 1; padding: 12px; border-radius: 12px;
-    font-family: var(--sans); font-size: 13px; font-weight: 700;
-    cursor: pointer; border: none; transition: all 0.2s;
-  }
-  .btn-primary { background: var(--green); color: #000; }
-  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost:hover { border-color: var(--green-border); }
-
-  .error-box {
-    background: rgba(255,69,58,0.1); border: 1px solid rgba(255,69,58,0.3);
-    border-radius: 12px; padding: 16px; font-family: var(--mono); font-size: 13px;
-    color: var(--red); text-align: center; margin-top: 16px;
-  }
-
-  .sep { height: 1px; background: var(--border); }
+  .actions { display:flex; gap:10px; margin-top:20px; }
+  .btn { flex:1; padding:12px; border-radius:12px; font-family:var(--sans); font-size:13px; font-weight:700; cursor:pointer; border:none; transition:all 0.2s; }
+  .btn-primary { background:var(--green); color:#000; }
+  .btn-primary:hover { opacity:0.9; transform:translateY(-1px); }
+  .btn-ghost { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .btn-ghost:hover { border-color:var(--green-border); }
+  .error-box { background:rgba(255,69,58,0.1); border:1px solid rgba(255,69,58,0.3); border-radius:12px; padding:16px; font-family:var(--mono); font-size:13px; color:var(--red); text-align:center; margin-top:16px; }
 </style>
 </head>
 <body>
 <div class="wrapper">
-
   <header>
-    <div class="logo">
-      <span class="logo-dot"></span>
-      BATTERY ANALYZER
-    </div>
+    <div class="logo"><span class="logo-dot"></span>BATTERY ANALYZER</div>
     <h1>iPhone <span>Battery</span><br>Real Stats</h1>
     <p class="subtitle">// upload file .synced dari iPhone kamu</p>
   </header>
-
   <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
     <span class="upload-icon">🔋</span>
     <div class="upload-title">Drop file .synced di sini</div>
     <div class="upload-sub">atau klik untuk pilih file &nbsp;·&nbsp; format: <span>Analytics-YYYY-MM-DD-*.synced</span></div>
     <input type="file" id="fileInput" accept=".synced">
   </div>
-
   <div id="errorBox" class="error-box" style="display:none"></div>
-
   <div id="historySection" style="display:none">
     <div class="history-label">📂 Riwayat file sebelumnya</div>
     <div class="month-filter" id="monthFilter"></div>
     <div class="history-list" id="historyList"></div>
   </div>
-
   <div id="resultContainer" style="margin-top:32px"></div>
-
 </div>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-// ── Storage for history ──────────────────────────────────────────────
 const HISTORY_KEY = 'batteryHistory';
-let activeMonth = 'all'; // state filter bulan aktif
+const NOTES_KEY   = 'batteryNotes';
+let activeMonth   = 'all';
+let currentDate   = null;
+let bhChart       = null;
 
-function getHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
-}
+function getHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); } catch { return []; } }
 function saveHistory(entry) {
   const h = getHistory().filter(x => x.date !== entry.date);
   h.unshift(entry);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 200))); // naikin limit ke 200
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0,200)));
 }
-
-// helper: ambil "YYYY-MM" dari date string
-function getYearMonth(dateStr) {
-  return dateStr ? dateStr.slice(0, 7) : '';
-}
-
-// helper: format label bulan "Jul 2026"
+function getNotes() { try { return JSON.parse(localStorage.getItem(NOTES_KEY)||'{}'); } catch { return {}; } }
+function saveNote(date, note) { const n=getNotes(); n[date]=note; localStorage.setItem(NOTES_KEY,JSON.stringify(n)); }
+function getYearMonth(d) { return d ? d.slice(0,7) : ''; }
 function formatMonthLabel(ym) {
   if (!ym) return '';
-  const [y, m] = ym.split('-');
-  const names = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-  return `${names[parseInt(m)-1]} ${y}`;
+  const [y,m] = ym.split('-');
+  return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][parseInt(m)-1]+' '+y;
 }
 
-// ── Parser ───────────────────────────────────────────────────────────
+// ── Parser ────────────────────────────────────────────────────────────
 function parseFile(text) {
   const result = {};
-
-  // ── Format lama (iOS < 26.6): BatteryConfigValueHistogramFinal_V2 ──
-  const keys = ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'];
-  keys.forEach(k => {
-    const m = text.match(new RegExp('"last_value_' + k + '":(\\d+)'));
+  ['MaximumFCC','NominalChargeCapacity','CycleCount','MaximumCapacityPercent','AppleRawMaxCapacity','BatteryHealthMetric'].forEach(k => {
+    const m = text.match(new RegExp('"last_value_'+k+'":(\\d+)'));
     if (m) result[k] = parseInt(m[1]);
   });
-
-  // BH% dari maximumCapacityPercent (format baru)
   if (!result.MaximumCapacityPercent) {
     const m = text.match(/"maximumCapacityPercent":(\d+)/);
     if (m) result.MaximumCapacityPercent = parseInt(m[1]);
   }
-
-  // batteryTrusted — baterai original Apple
   const trustedM = text.match(/"batteryTrusted":(true|false)/);
-  result.batteryTrusted = trustedM ? trustedM[1] === 'true' : null;
-
-  // BatteryCellDisconnect — 0 = bagus
-  const disconnectM = text.match(/"BatteryCellDisconnectCount_Last_Value_Of_Day"[\s\S]*?"last_value_value":(\d+)/);
-  result.cellDisconnect = disconnectM ? parseInt(disconnectM[1]) : null;
-
-  // BatteryAuthFailure
-  const authCommM = text.match(/"BatteryAuthFailureReasons_ASBM"[\s\S]*?"communication_error":(null|\d+)/);
-  const authCoprocM = text.match(/"BatteryAuthFailureReasons_ASBM"[\s\S]*?"coprocerror":(null|\d+)/);
-  if (authCommM || authCoprocM) {
-    result.authError = (authCommM && authCommM[1] !== 'null') || (authCoprocM && authCoprocM[1] !== 'null');
-  }
-
-  // BatteryTimeAtHighSoc bins
-  const highSocBins = {};
-  const highSocRegex = /"BatteryTimeAtHighSocLast"[\s\S]*?"bin":"(\d+)","last_value_value":(\d+)/g;
-  let hsMatch;
-  while ((hsMatch = highSocRegex.exec(text)) !== null) {
-    highSocBins[parseInt(hsMatch[1])] = parseInt(hsMatch[2]);
-  }
-  result.highSocBins = Object.keys(highSocBins).length > 0 ? highSocBins : null;
-
-  // LowVoltageResidency — total semua bin, 0 = bagus
-  const lvRegex = /"Battery_LowVoltageResidencyCountersLastValue"[\s\S]*?"last_value_value":(\d+)/g;
-  let lvMatch, lvTotal = 0, lvFound = false;
-  while ((lvMatch = lvRegex.exec(text)) !== null) {
-    lvTotal += parseInt(lvMatch[1]);
-    lvFound = true;
-  }
-  result.lowVoltageTotal = lvFound ? lvTotal : null;
-
-  // rolloverReason
-  const rolloverM = text.match(/"rolloverReason":"([^"]+)"/);
-  result.rolloverReason = rolloverM ? rolloverM[1] : null;
-
-  // Tandai format file
+  result.batteryTrusted = trustedM ? trustedM[1]==='true' : null;
+  const discM = text.match(/"BatteryCellDisconnectCount_Last_Value_Of_Day"[\s\S]*?"last_value_value":(\d+)/);
+  result.cellDisconnect = discM ? parseInt(discM[1]) : null;
+  const rollM = text.match(/"rolloverReason":"([^"]+)"/);
+  result.rolloverReason = rollM ? rollM[1] : null;
   const hasDetail  = !!(result.MaximumFCC || result.NominalChargeCapacity);
   const hasBH      = !!result.MaximumCapacityPercent;
-  const hasNewData = result.batteryTrusted !== null || result.highSocBins !== null || result.cellDisconnect !== null;
-  result._formatType = hasDetail ? 'full' : (hasBH || hasNewData ? 'partial' : 'none');
-
+  const hasNewData = result.batteryTrusted !== null || result.cellDisconnect !== null;
+  result._formatType = hasDetail ? 'full' : (hasBH||hasNewData ? 'partial' : 'none');
   return result;
 }
 
-function extractDate(filename) {
-  const m = filename.match(/(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : 'Unknown';
+function extractDate(fn) { const m=fn.match(/(\d{4}-\d{2}-\d{2})/); return m?m[1]:'Unknown'; }
+
+// ── Health helpers ────────────────────────────────────────────────────
+function healthColor(p) { return p>=90?'var(--green)':p>=80?'var(--orange)':'var(--red)'; }
+function healthBadge(p) {
+  if (p>=90) return ['badge-green','Excellent 🔥'];
+  if (p>=80) return ['badge-orange','Good ✅'];
+  return ['badge-red','Perlu Perhatian ⚠️'];
+}
+function healthDesc(p) {
+  if (p>=100) return 'Baterai kamu bahkan <strong>melebihi spesifikasi pabrik</strong>! Kondisi terbaik yang mungkin ada.';
+  if (p>=95)  return 'Baterai masih dalam kondisi <strong>prima banget</strong>. Nggak ada yang perlu dikhawatirkan.';
+  if (p>=90)  return 'Kondisi baterai <strong>masih sangat baik</strong>. Degradasi ringan yang wajar.';
+  if (p>=80)  return 'Baterai mulai menua tapi <strong>masih layak pakai</strong>.';
+  return 'Kapasitas baterai <strong>di bawah 80%</strong>. Apple rekomendasiin ganti baterai di titik ini.';
+}
+function cycleDesc(c) {
+  if (!c) return '';
+  if (c<50)  return 'Masih <strong>sangat baru</strong> — fase kalibrasi mungkin masih berjalan.';
+  if (c<150) return 'Siklus '+c+' — baterai masih <strong>muda</strong>, jauh dari batas 500.';
+  if (c<300) return 'Siklus '+c+' — memasuki <strong>fase pertengahan</strong>. Pantau rutin.';
+  if (c<500) return 'Siklus '+c+' — sudah <strong>setengah jalan</strong> menuju 500.';
+  return 'Siklus '+c+' — <strong>melewati batas 500</strong>. Pertimbangkan ganti baterai.';
 }
 
-// ── Health utils ─────────────────────────────────────────────────────
-function healthColor(pct) {
-  if (pct >= 90) return 'var(--green)';
-  if (pct >= 80) return 'var(--orange)';
-  return 'var(--red)';
-}
-function healthBadge(pct) {
-  if (pct >= 90) return ['badge-green', 'Excellent 🔥'];
-  if (pct >= 80) return ['badge-orange', 'Good ✅'];
-  return ['badge-red', 'Perlu Perhatian ⚠️'];
-}
-function healthDesc(pct, cycle) {
-  if (pct >= 100) return `Baterai kamu bahkan <strong>melebihi spesifikasi pabrik</strong>! Ini normal di baterai baru yang lagi break-in. Kondisi terbaik yang mungkin ada.`;
-  if (pct >= 95) return `Baterai masih dalam kondisi <strong>prima banget</strong>. Nggak ada yang perlu dikhawatirkan sama sekali.`;
-  if (pct >= 90) return `Kondisi baterai <strong>masih sangat baik</strong>. Degradasi ringan yang wajar sesuai usia pemakaian.`;
-  if (pct >= 80) return `Baterai mulai menua tapi <strong>masih layak pakai</strong>. Mungkin mulai terasa baterai nggak sepanjang dulu.`;
-  return `Kapasitas baterai sudah <strong>di bawah 80%</strong>. Apple sendiri rekomendasiin ganti baterai di titik ini.`;
-}
-function cycleDesc(cycle) {
-  if (cycle < 50)   return `Masih <strong>sangat baru</strong> banget — ${cycle} siklus itu belum ada apa-apanya. Fase kalibrasi mungkin masih berjalan.`;
-  if (cycle < 150)  return `Siklus ${cycle} — baterai masih <strong>muda</strong>. Jauh dari batas 500 yang biasanya mulai terasa turun.`;
-  if (cycle < 300)  return `Siklus ${cycle} — memasuki <strong>fase pertengahan</strong>. Masih oke, pantau terus tiap bulan.`;
-  if (cycle < 500)  return `Siklus ${cycle} — sudah <strong>setengah jalan</strong> menuju 500. Health mulai perlu diperhatiin lebih.`;
-  return `Siklus ${cycle} — sudah <strong>melewati batas 500</strong> yang jadi patokan Apple. Pertimbangkan ganti baterai kalau health di bawah 80%.`;
+// ── Charging Habit Score ──────────────────────────────────────────────
+function calcScore(nom, prev, cyc, prevCyc) {
+  let score = 100;
+  let reasons = [];
+  // Penalti drop Nominal
+  if (nom && prev && prev>0) {
+    const drop = prev - nom;
+    if (drop > 20) { score -= 30; reasons.push('Nominal drop drastis ('+drop+' mAh)'); }
+    else if (drop > 10) { score -= 15; reasons.push('Nominal turun cukup banyak ('+drop+' mAh)'); }
+    else if (drop > 5)  { score -= 5;  reasons.push('Nominal turun tipis ('+drop+' mAh)'); }
+    else if (drop < -5) { score += 5; } // bonus naik
+  }
+  // Penalti cycle terlalu cepat
+  if (cyc && prevCyc) {
+    const cycDay = cyc - prevCyc;
+    if (cycDay > 2)     { score -= 20; reasons.push('Cycle nambah '+cycDay+' dalam sehari (terlalu intensif)'); }
+    else if (cycDay > 1){ score -= 5;  reasons.push('Cycle nambah '+cycDay); }
+  }
+  score = Math.max(0, Math.min(100, score));
+  return { score, reasons };
 }
 
-// ── Ring SVG ─────────────────────────────────────────────────────────
-function ring(pct) {
-  const r = 40, c = 2*Math.PI*r;
-  const fill = Math.min(pct, 100);
-  const color = healthColor(pct);
-  return `<svg width="96" height="96" viewBox="0 0 96 96">
-    <circle cx="48" cy="48" r="${r}" stroke="rgba(255,255,255,0.06)" stroke-width="8" fill="none"/>
-    <circle cx="48" cy="48" r="${r}" stroke="${color}" stroke-width="8" fill="none"
-      stroke-dasharray="${c}" stroke-dashoffset="${c - (fill/100)*c}"
-      stroke-linecap="round" style="transition:stroke-dashoffset 1s ease"/>
-  </svg>`;
+function scoreLabel(s) {
+  if (s>=85) return { label:'Excellent 🏆', color:'var(--green)' };
+  if (s>=70) return { label:'Good 👍', color:'#5ac8fa' };
+  if (s>=50) return { label:'Fair ⚠️', color:'var(--orange)' };
+  return { label:'Needs Work 🔴', color:'var(--red)' };
 }
 
-// ── HighSoc Chart (format baru iOS 26.6) ──────────────────────────
-function renderHighSocChart(bins) {
-  if (!bins) return '';
-  const labels = ['<20%','20-30%','30-40%','40-50%','50-60%','60-70%','70-80%','80-90%','90-95%','95-100%'];
-  const colors = ['#444','#555','#666','#777','#888','#999','var(--green)','var(--orange)','#ff6b35','var(--red)'];
-  const maxVal = Math.max(...Object.values(bins), 1);
-  const rows = Object.entries(bins).sort((a,b)=>parseInt(a[0])-parseInt(b[0])).map(([bin, val]) => {
-    const b = parseInt(bin);
-    const pct = Math.round(val / maxVal * 100);
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
-      + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:62px;text-align:right;flex-shrink:0">' + (labels[b]||b) + '</div>'
-      + '<div style="flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:14px;overflow:hidden">'
-      + '<div style="width:' + pct + '%;height:100%;background:' + (colors[b]||'var(--green)') + ';border-radius:3px"></div></div>'
-      + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:28px;flex-shrink:0">' + val + 'm</div>'
-      + '</div>';
-  }).join('');
-  return '<div class="exp-item"><div class="exp-key">Distribusi Waktu di Level Baterai</div>'
-    + '<div class="exp-val" style="margin-bottom:10px">Berapa menit baterai berada di tiap rentang level kemarin. Hijau (70-80%) = zona charging ideal.</div>'
-    + rows + '</div>';
+// ── Ring SVG ──────────────────────────────────────────────────────────
+function ring(pct, color) {
+  const r=40, c=2*Math.PI*r, fill=Math.min(pct,100);
+  return '<svg width="96" height="96" viewBox="0 0 96 96">'
+    +'<circle cx="48" cy="48" r="'+r+'" stroke="rgba(255,255,255,0.06)" stroke-width="8" fill="none"/>'
+    +'<circle cx="48" cy="48" r="'+r+'" stroke="'+color+'" stroke-width="8" fill="none"'
+    +' stroke-dasharray="'+c+'" stroke-dashoffset="'+(c-(fill/100)*c)+'"'
+    +' stroke-linecap="round" style="transition:stroke-dashoffset 1s ease"/>'
+    +'</svg>';
 }
 
-// ── Change indicator ─────────────────────────────────────────────────
-function changeBadge(cur, prev, unit='') {
-  if (prev == null) return '';
-  const diff = cur - prev;
-  if (diff > 0) return '<div class="stat-change up">▲ +' + diff + unit + ' dari sebelumnya</div>';
-  if (diff < 0) return '<div class="stat-change down">▼ ' + diff + unit + ' dari sebelumnya</div>';
-  return `<div class="stat-change same">— sama seperti sebelumnya</div>`;
+function changeBadge(cur, prev, unit) {
+  if (prev==null||cur==null) return '';
+  const d=cur-prev;
+  if (d>0) return '<div class="stat-change up">▲ +'+d+unit+' dari sebelumnya</div>';
+  if (d<0) return '<div class="stat-change down">▼ '+d+unit+' dari sebelumnya</div>';
+  return '<div class="stat-change same">— sama seperti sebelumnya</div>';
 }
 
-// ── Render result ────────────────────────────────────────────────────
-function render(data, date, filename, prev) {
-  const pct        = data.MaximumCapacityPercent ?? 0;
-  const fcc        = data.MaximumFCC ?? null;
-  const nom        = data.NominalChargeCapacity ?? null;
-  const raw        = data.AppleRawMaxCapacity ?? null;
-  const cyc        = data.CycleCount ?? null;
-  const formatType = data._formatType || 'full'; // 'full' | 'partial' | 'none'
-  const isPartial  = formatType === 'partial';
-  const [badgeClass, badgeText] = healthBadge(pct);
-  const color = healthColor(pct);
+// ── BH Prediction ─────────────────────────────────────────────────────
+function buildPrediction(nom, pct, fcc, history) {
+  if (!nom || !pct || history.length < 3) return '';
+  const recentWithNom = history.filter(h=>h.nom&&h.nom>0).slice(0,6);
+  if (recentWithNom.length < 2) return '';
+  const oldest = recentWithNom[recentWithNom.length-1];
+  const newest = recentWithNom[0];
+  const daysDiff = Math.max(1,(new Date(newest.date)-new Date(oldest.date))/(1000*60*60*24));
+  const ratePerDay = (oldest.nom - newest.nom) / daysDiff;
+  const designCap = fcc ? fcc*0.955 : 3279;
+  const thresholds = [99,98,97,96,95,90,85,80].map(bh=>({ bh, nom: Math.round(designCap*(bh/100)) }));
+  const next = thresholds.find(t=>t.nom<nom);
+  if (!next) return '';
 
-  // helper untuk tampilkan nilai atau placeholder
-  const val = (v) => v != null ? v : '<span style="color:var(--muted);font-size:14px">—</span>';
+  if (ratePerDay<=0) {
+    return '<div class="predict-card" style="background:rgba(0,232,122,0.06);border:1px solid rgba(0,232,122,0.2)">'
+      +'<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🟢 PREDIKSI PENURUNAN BH</div>'
+      +'<div style="font-size:15px;font-weight:700;color:var(--green)">Nominal sedang naik atau stabil ✅</div>'
+      +'<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px">BH tidak akan turun dalam waktu dekat selama tren ini berlanjut.</div>'
+      +'</div>';
+  }
 
-  const history = getHistory();
+  const nomGap   = nom - next.nom;
+  const daysLeft = Math.round(nomGap / ratePerDay);
+  const target   = new Date(); target.setDate(target.getDate()+daysLeft);
+  const targetStr= target.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+  const urgency  = daysLeft<14?'red':daysLeft<30?'orange':'green';
+  const uc = urgency==='red'?'var(--red)':urgency==='orange'?'var(--orange)':'var(--green)';
+  const ub = urgency==='red'?'rgba(255,69,58,0.08)':urgency==='orange'?'rgba(255,159,10,0.08)':'rgba(0,232,122,0.06)';
+  const ubr= urgency==='red'?'rgba(255,69,58,0.3)':urgency==='orange'?'rgba(255,159,10,0.3)':'rgba(0,232,122,0.2)';
+  const icon = urgency==='red'?'🔴':urgency==='orange'?'🟠':'🟢';
 
-  // ── BH Prediction ─────────────────────────────────────────────────
-  let bhPredictHTML = '';
-  if (nom && pct && history.length >= 3) {
-    // Ambil 5 data terakhir yang punya nominal untuk kalkulasi rate
-    const recentWithNom = history.filter(h => h.nom && h.nom > 0).slice(0, 5);
+  return '<div class="predict-card" style="background:'+ub+';border:1px solid '+ubr+'">'
+    +'<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">'+icon+' PREDIKSI PENURUNAN BH</div>'
+    +'<div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:4px">'
+    +'<span style="font-size:36px;font-weight:800;color:'+uc+';line-height:1">'+daysLeft+'</span>'
+    +'<span style="font-size:14px;color:var(--muted);padding-bottom:5px">hari lagi</span></div>'
+    +'<div style="font-size:14px;font-weight:600;margin-bottom:4px">BH kemungkinan turun ke <span style="color:'+uc+'">'+next.bh+'%</span></div>'
+    +'<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:12px">estimasi sekitar '+targetStr+'</div>'
+    +'<div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px">'
+    +'<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:8px;letter-spacing:1px">DETAIL KALKULASI</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:11px">'
+    +'<div style="color:var(--muted)">Nominal sekarang</div><div>'+nom+' mAh</div>'
+    +'<div style="color:var(--muted)">Threshold '+next.bh+'%</div><div>'+next.nom+' mAh</div>'
+    +'<div style="color:var(--muted)">Sisa turun</div><div style="color:'+uc+'">'+nomGap+' mAh</div>'
+    +'<div style="color:var(--muted)">Rate penurunan</div><div>~'+ratePerDay.toFixed(1)+' mAh/hari</div>'
+    +'</div></div>'
+    +'<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.25);margin-top:10px">* estimasi dari '+recentWithNom.length+' data terakhir — bisa berubah tergantung pola charging</div>'
+    +'</div>';
+}
 
-    if (recentWithNom.length >= 2) {
-      const oldest = recentWithNom[recentWithNom.length - 1];
-      const newest = recentWithNom[0];
-      const daysDiff = oldest.date && newest.date
-        ? Math.max(1, (new Date(newest.date) - new Date(oldest.date)) / (1000*60*60*24))
-        : 1;
-      const nomDiff  = oldest.nom - newest.nom; // positif = turun
-      const ratePerDay = nomDiff / daysDiff;    // mAh per hari (negatif = lagi naik)
+// ── Summary Stats ─────────────────────────────────────────────────────
+function buildSummary(nom, pct, fcc, cyc, history) {
+  const h = history.filter(x=>x.nom&&x.nom>0);
+  if (h.length < 2) return '';
+  const first = h[h.length-1];
+  const oldest = new Date(first.date);
+  const today  = new Date();
+  const totalDays = Math.round((today-oldest)/(1000*60*60*24));
+  const peakNom = Math.max(...h.map(x=>x.nom));
+  const dropTotal = peakNom - (nom||0);
+  const avgCycleDay = cyc && totalDays ? (cyc/totalDays).toFixed(2) : '–';
 
-      // Threshold tiap BH level (estimasi berdasarkan kapasitas desain ~3279)
-      const designCapacity = fcc ? fcc * 0.955 : 3279;
-      const bhThresholds = [
-        { bh: 99, nom: Math.round(designCapacity * 0.99) },
-        { bh: 98, nom: Math.round(designCapacity * 0.98) },
-        { bh: 97, nom: Math.round(designCapacity * 0.97) },
-        { bh: 96, nom: Math.round(designCapacity * 0.96) },
-        { bh: 95, nom: Math.round(designCapacity * 0.95) },
-        { bh: 90, nom: Math.round(designCapacity * 0.90) },
-        { bh: 85, nom: Math.round(designCapacity * 0.85) },
-        { bh: 80, nom: Math.round(designCapacity * 0.80) },
-      ];
-
-      // Cari threshold berikutnya di bawah nilai nominal sekarang
-      const nextThreshold = bhThresholds.find(t => t.nom < nom);
-
-      if (nextThreshold && ratePerDay > 0) {
-        // Nominal lagi turun — hitung estimasi kapan nyampe threshold
-        const nomGap = nom - nextThreshold.nom;
-        const daysLeft = Math.round(nomGap / ratePerDay);
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + daysLeft);
-        const targetStr = targetDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-
-        const urgency = daysLeft < 14 ? 'red' : daysLeft < 30 ? 'orange' : 'green';
-        const urgencyColor = urgency === 'red' ? 'var(--red)' : urgency === 'orange' ? 'var(--orange)' : 'var(--green)';
-        const urgencyBg = urgency === 'red' ? 'rgba(255,69,58,0.08)' : urgency === 'orange' ? 'rgba(255,159,10,0.08)' : 'rgba(0,232,122,0.08)';
-        const urgencyBorder = urgency === 'red' ? 'rgba(255,69,58,0.3)' : urgency === 'orange' ? 'rgba(255,159,10,0.3)' : 'rgba(0,232,122,0.3)';
-        const icon = urgency === 'red' ? '🔴' : urgency === 'orange' ? '🟠' : '🟢';
-
-        bhPredictHTML = '<div style="background:' + urgencyBg + ';border:1px solid ' + urgencyBorder + ';border-radius:16px;padding:18px 20px;margin-top:16px">'
-          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">' + icon + ' PREDIKSI PENURUNAN BH</div>'
-          + '<div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:6px">'
-          + '<span style="font-size:32px;font-weight:800;color:' + urgencyColor + ';line-height:1">' + daysLeft + '</span>'
-          + '<span style="font-size:14px;color:rgba(255,255,255,0.5);padding-bottom:4px">hari lagi</span>'
-          + '</div>'
-          + '<div style="font-size:14px;font-weight:600;margin-bottom:4px">BH kemungkinan turun ke <span style="color:' + urgencyColor + '">' + nextThreshold.bh + '%</span></div>'
-          + '<div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:10px">estimasi sekitar ' + targetStr + '</div>'
-          + '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 12px">'
-          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px">DETAIL KALKULASI</div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:11px">'
-          + '<div style="color:rgba(255,255,255,0.5)">Nominal sekarang</div><div style="color:var(--text)">' + nom + ' mAh</div>'
-          + '<div style="color:rgba(255,255,255,0.5)">Threshold ' + nextThreshold.bh + '%</div><div style="color:var(--text)">' + nextThreshold.nom + ' mAh</div>'
-          + '<div style="color:rgba(255,255,255,0.5)">Sisa turun</div><div style="color:' + urgencyColor + '">' + nomGap + ' mAh</div>'
-          + '<div style="color:rgba(255,255,255,0.5)">Rate penurunan</div><div style="color:var(--text)">~' + ratePerDay.toFixed(1) + ' mAh/hari</div>'
-          + '</div></div>'
-          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.3);margin-top:10px">* estimasi berdasarkan tren ' + recentWithNom.length + ' data terakhir — bisa berubah tergantung pola charging</div>'
-          + '</div>';
-      } else if (nextThreshold && ratePerDay <= 0) {
-        // Nominal lagi naik atau stabil — aman
-        bhPredictHTML = '<div style="background:rgba(0,232,122,0.06);border:1px solid rgba(0,232,122,0.2);border-radius:16px;padding:16px 20px;margin-top:16px">'
-          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🟢 PREDIKSI PENURUNAN BH</div>'
-          + '<div style="font-size:14px;font-weight:600;color:var(--green)">Nominal sedang naik atau stabil ✅</div>'
-          + '<div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.45);margin-top:4px">BH tidak akan turun dalam waktu dekat selama tren ini berlanjut.</div>'
-          + '</div>';
-      }
+  // Estimasi umur ke 80%
+  const designCap = fcc ? fcc*0.955 : 3279;
+  const thresh80  = Math.round(designCap*0.80);
+  const recentWithNom = h.slice(0,5);
+  let lifeEst = '–';
+  if (recentWithNom.length>=2 && nom) {
+    const oDays = Math.max(1,(new Date(recentWithNom[0].date)-new Date(recentWithNom[recentWithNom.length-1].date))/(1000*60*60*24));
+    const rate  = (recentWithNom[recentWithNom.length-1].nom - recentWithNom[0].nom) / oDays;
+    if (rate>0) {
+      const dLeft = Math.round((nom-thresh80)/rate);
+      lifeEst = dLeft > 0 ? Math.round(dLeft/30)+' bulan' : 'Segera';
     }
   }
 
-  let trendHTML = '';
-  if (history.length > 1) {
-    const maxNom = Math.max(...history.map(h => h.nom).filter(Boolean));
-    trendHTML = '<div class="trend-section">'
-      + '<div class="trend-title">📈 Tren NominalCharge dari semua file</div>'
-      + history.filter(h => h.nom).map(h =>
-          '<div class="trend-row">'
-          + '<div class="trend-date">' + h.date + '</div>'
-          + '<div class="trend-bar-wrap"><div class="trend-bar" style="width:' + (h.nom/maxNom*100).toFixed(1) + '%"></div></div>'
-          + '<div class="trend-val" style="color:' + healthColor(h.pct) + '">' + h.nom + '</div>'
-          + '</div>'
-        ).join('')
-      + '</div>';
-  }
-
-  document.getElementById('resultContainer').innerHTML = `
-  <div class="result">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Statistik Baterai iPhone</div>
-        <div class="card-date" style="margin-top:4px">📅 ${date} &nbsp;·&nbsp; ${filename}</div>
-      </div>
-      <span class="badge ${badgeClass}">${badgeText}</span>
-    </div>
-
-    <div class="health-section">
-      <div class="health-ring">
-        ${ring(pct)}
-        <div class="health-ring-text">
-          <div class="health-num" style="color:${color}">${pct}</div>
-          <div class="health-pct">%</div>
-        </div>
-      </div>
-      <div class="health-info">
-        <h3>Kesehatan Baterai</h3>
-        <p>${healthDesc(pct, cyc)}</p>
-      </div>
-    </div>
-
-    ${isPartial && !fcc ? `
-    <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.25);padding:14px 20px;display:flex;gap:10px;align-items:flex-start">
-      <span style="font-size:18px;flex-shrink:0">⚠️</span>
-      <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
-        <strong style="font-size:12px">Format iOS 26.6+ terdeteksi</strong><br>
-        Data detail (FCC, NominalCharge, CycleCount) sudah tidak tersedia. App menampilkan data yang masih bisa dibaca dari format baru ini.
-      </div>
-    </div>` : ''}
-
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label">MaximumFCC</div>
-        <div class="stat-value" style="color:${fcc ? color : 'var(--muted)'}">${val(fcc)}</div>
-        ${fcc ? `<div class="stat-unit">mAh</div>${changeBadge(fcc, prev?.MaximumFCC, ' mAh')}` : `<div class="stat-unit" style="font-size:10px">tidak tersedia</div>`}
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">NominalCharge</div>
-        <div class="stat-value">${val(nom)}</div>
-        ${nom ? `<div class="stat-unit">mAh</div>${changeBadge(nom, prev?.NominalChargeCapacity, ' mAh')}` : `<div class="stat-unit" style="font-size:10px">tidak tersedia</div>`}
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">AppleRawMax</div>
-        <div class="stat-value">${val(raw)}</div>
-        ${raw ? `<div class="stat-unit">mAh</div>${changeBadge(raw, prev?.AppleRawMaxCapacity, ' mAh')}` : `<div class="stat-unit" style="font-size:10px">tidak tersedia</div>`}
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Cycle Count</div>
-        <div class="stat-value">${val(cyc)}</div>
-        ${cyc ? `<div class="stat-unit">siklus</div>${changeBadge(cyc, prev?.CycleCount, ' siklus')}` : `<div class="stat-unit" style="font-size:10px">tidak tersedia</div>`}
-      </div>
-    </div>
-
-    <div class="explanation">
-      <h4>// penjelasan</h4>
-      ${fcc ? `<div class="exp-item"><div class="exp-key">MaximumFCC — ${fcc} mAh</div><div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div></div>` : ''}
-      ${nom ? `<div class="exp-item"><div class="exp-key">NominalChargeCapacity — ${nom} mAh</div><div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis.</div></div>` : ''}
-      ${raw ? `<div class="exp-item"><div class="exp-key">AppleRawMaxCapacity — ${raw} mAh</div><div class="exp-val">Pembacaan mentah langsung dari chip baterai. Data paling "jujur" dari hardware-nya.</div></div>` : ''}
-      ${cyc ? `<div class="exp-item"><div class="exp-key">Cycle Count — ${cyc} siklus</div><div class="exp-val">${cycleDesc(cyc)}</div></div>` : ''}
-      ${data.batteryTrusted !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.batteryTrusted ? 'var(--green)' : 'var(--red)'}">Baterai Original Apple — ${data.batteryTrusted ? '✅ Ya' : '❌ Tidak terdeteksi'}</div><div class="exp-val">${data.batteryTrusted ? 'Baterai kamu diakui Apple sebagai komponen original yang sah.' : 'Baterai tidak diakui sebagai original Apple — mungkin sudah pernah diganti dengan part non-original.'}</div></div>` : ''}
-      ${data.cellDisconnect !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.cellDisconnect === 0 ? 'var(--green)' : 'var(--orange)'}">Cell Disconnect — ${data.cellDisconnect === 0 ? '✅ Normal (0)' : '⚠️ ' + data.cellDisconnect + ' kali'}</div><div class="exp-val">${data.cellDisconnect === 0 ? 'Tidak ada sel baterai yang terputus — kondisi fisik baterai baik.' : 'Ada ' + data.cellDisconnect + ' kejadian sel disconnect. Bisa jadi tanda masalah fisik pada baterai.'}</div></div>` : ''}
-      ${data.lowVoltageTotal !== null ? `<div class="exp-item"><div class="exp-key" style="color:${data.lowVoltageTotal === 0 ? 'var(--green)' : 'var(--orange)'}">Low Voltage Events — ${data.lowVoltageTotal === 0 ? '✅ Normal (0)' : '⚠️ ' + data.lowVoltageTotal}</div><div class="exp-val">${data.lowVoltageTotal === 0 ? 'Tidak ada kejadian voltage drop — baterai stabil secara elektrik.' : 'Ada kejadian voltage drop. Pantau terus, bisa jadi tanda degradasi sel.'}</div></div>` : ''}
-      ${data.highSocBins ? renderHighSocChart(data.highSocBins) : ''}
-      ${isPartial && !data.highSocBins && data.batteryTrusted === null ? `<div class="exp-item"><div class="exp-key" style="color:var(--orange)">Kenapa data terbatas?</div><div class="exp-val">Apple menghapus data baterai detail (FCC, Nominal, CycleCount) dari file analytics sejak iOS 26.6. Ini keputusan Apple, bukan bug app ini.</div></div>` : ''}
-    </div>
-
-    <div class="verdict">
-      ${healthDesc(pct, cyc)} ${cyc ? cycleDesc(cyc) : ''}
-    </div>
-
-    ${bhPredictHTML}
-
-    ${trendHTML}
-
-    <div class="actions">
-      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Upload File Baru</button>
-      <button class="btn btn-ghost" onclick="window.print()">🖨️ Print / Save PDF</button>
-    </div>
-  </div>`;
+  return '<div class="summary-card">'
+    +'<div style="font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">📊 Ringkasan Keseluruhan</div>'
+    +'<div class="summary-grid">'
+    +'<div class="summary-item"><div class="summary-item-label">Hari Pemakaian</div><div class="summary-item-val">'+totalDays+' hari</div></div>'
+    +'<div class="summary-item"><div class="summary-item-label">Avg Cycle/Hari</div><div class="summary-item-val">'+avgCycleDay+'</div></div>'
+    +'<div class="summary-item"><div class="summary-item-label">Drop dari Puncak</div><div class="summary-item-val" style="color:'+(dropTotal>30?'var(--orange)':'var(--green)')+'">-'+dropTotal+' mAh</div></div>'
+    +'<div class="summary-item"><div class="summary-item-label">Estimasi ke 80%</div><div class="summary-item-val" style="color:var(--green)">'+lifeEst+'</div></div>'
+    +'</div></div>';
 }
 
-// ── Process file ─────────────────────────────────────────────────────
+// ── Chart ─────────────────────────────────────────────────────────────
+function buildChart(history) {
+  const h = history.filter(x=>x.nom&&x.nom>0).slice(0,20).reverse();
+  if (h.length < 3) return '';
+  return '<div class="chart-section">'
+    +'<div class="chart-title">📈 Tren Nominal & BH</div>'
+    +'<div class="chart-wrap"><canvas id="bhChartCanvas"></canvas></div>'
+    +'</div>';
+}
+
+function initChart(history) {
+  const h = history.filter(x=>x.nom&&x.nom>0).slice(0,20).reverse();
+  if (h.length < 3) return;
+  const ctx = document.getElementById('bhChartCanvas');
+  if (!ctx) return;
+  if (bhChart) { bhChart.destroy(); bhChart=null; }
+  bhChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: h.map(x=>x.date.slice(5)),
+      datasets: [
+        { label:'Nominal (mAh)', data:h.map(x=>x.nom), borderColor:'#00e87a', backgroundColor:'rgba(0,232,122,0.08)', tension:0.3, pointRadius:3, yAxisID:'y' },
+        { label:'BH (%)', data:h.map(x=>x.pct), borderColor:'#0a84ff', backgroundColor:'rgba(10,132,255,0.06)', tension:0.3, pointRadius:3, yAxisID:'y1', borderDash:[4,4] }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'rgba(240,240,248,0.5)', font:{size:10}, boxWidth:20 } } },
+      scales: {
+        x:{ ticks:{ color:'rgba(240,240,248,0.35)', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } },
+        y:{ position:'left', ticks:{ color:'rgba(240,240,248,0.35)', font:{size:9} }, grid:{ color:'rgba(255,255,255,0.04)' } },
+        y1:{ position:'right', ticks:{ color:'rgba(10,132,255,0.5)', font:{size:9} }, grid:{ drawOnChartArea:false } }
+      }
+    }
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────
+function render(data, date, filename, prev) {
+  currentDate = date;
+  const pct  = data.MaximumCapacityPercent ?? 0;
+  const fcc  = data.MaximumFCC ?? null;
+  const nom  = data.NominalChargeCapacity ?? null;
+  const raw  = data.AppleRawMaxCapacity ?? null;
+  const cyc  = data.CycleCount ?? null;
+  const isPartial = data._formatType === 'partial';
+  const [badgeClass, badgeText] = healthBadge(pct);
+  const color = healthColor(pct);
+  const history = getHistory();
+
+  // Drop alert
+  const dropThreshold = 15;
+  let dropAlertHTML = '';
+  if (nom && prev && prev.NominalChargeCapacity) {
+    const drop = prev.NominalChargeCapacity - nom;
+    if (drop >= dropThreshold) {
+      dropAlertHTML = '<div class="drop-alert">'
+        +'<span style="font-size:20px;flex-shrink:0">⚠️</span>'
+        +'<div style="font-family:var(--mono);font-size:11px;color:rgba(255,69,58,0.9);line-height:1.7">'
+        +'<strong>Nominal drop drastis −'+drop+' mAh dari kemarin!</strong><br>'
+        +'Kemungkinan penyebab: bablas cas 100% semalaman · update iOS · HP kepanasan parah · gaming berat sambil cas.'
+        +'</div></div>';
+    }
+  }
+
+  // Charging Habit Score
+  const prevNom  = prev?.NominalChargeCapacity ?? null;
+  const prevCyc  = prev?.CycleCount ?? null;
+  const { score, reasons } = calcScore(nom, prevNom, cyc, prevCyc);
+  const { label: scoreLabel2, color: scoreColor } = scoreLabel(score);
+  const scoreHTML = nom ? '<div class="score-section">'
+    +'<div class="score-label">🎯 Charging Habit Score</div>'
+    +'<div class="score-bar-wrap"><div class="score-bar" style="width:'+score+'%;background:'+scoreColor+'"><span>'+score+'</span></div></div>'
+    +'<div class="score-desc">'+scoreLabel2+(reasons.length?' — '+reasons[0]:'')+'</div>'
+    +'</div>' : '';
+
+  // BH Prediction
+  const predHTML = buildPrediction(nom, pct, fcc, history);
+
+  // Summary
+  const summHTML = buildSummary(nom, pct, fcc, cyc, history);
+
+  // Chart
+  const chartHTML = buildChart(history);
+
+  // Trend bars
+  let trendHTML = '';
+  const withNom = history.filter(x=>x.nom&&x.nom>0);
+  if (withNom.length > 1) {
+    const maxNom = Math.max(...withNom.map(x=>x.nom));
+    trendHTML = '<div class="trend-section">'
+      +'<div class="trend-title">📋 Tren NominalCharge</div>'
+      +withNom.map(h=>'<div class="trend-row">'
+        +'<div class="trend-date">'+h.date+'</div>'
+        +'<div class="trend-bar-wrap"><div class="trend-bar" style="width:'+((h.nom/maxNom)*100).toFixed(1)+'%"></div></div>'
+        +'<div class="trend-val" style="color:'+healthColor(h.pct)+'">'+h.nom+'</div>'
+        +'</div>').join('')
+      +'</div>';
+  }
+
+  // Notes
+  const notes = getNotes();
+  const existingNote = notes[date] || '';
+  const notesHTML = '<div class="notes-section">'
+    +'<div class="notes-title">📝 Catatan Hari Ini</div>'
+    +'<textarea class="notes-input" id="noteInput" rows="2" placeholder="Contoh: bablas 100%, update iOS, HP sempat panas...">'+(existingNote)+'</textarea>'
+    +'<div style="display:flex;align-items:center">'
+    +'<button class="notes-save" onclick="saveCurrentNote()">Simpan Catatan</button>'
+    +'<span class="notes-saved" id="notesSaved">✓ Tersimpan</span>'
+    +'</div>'
+    +'</div>';
+
+  document.getElementById('resultContainer').innerHTML =
+    '<div class="result">'
+    // Header
+    +'<div class="card-header"><div>'
+    +'<div class="card-title">Statistik Baterai iPhone</div>'
+    +'<div class="card-date" style="margin-top:4px">📅 '+date+' &nbsp;·&nbsp; '+filename+'</div>'
+    +'</div><span class="badge '+badgeClass+'">'+badgeText+'</span></div>'
+    // Health
+    +'<div class="health-section">'
+    +'<div class="health-ring">'+ring(pct,color)+'<div class="health-ring-text"><div class="health-num" style="color:'+color+'">'+pct+'</div><div class="health-pct">%</div></div></div>'
+    +'<div class="health-info"><h3>Kesehatan Baterai</h3><p>'+healthDesc(pct)+'</p></div>'
+    +'</div>'
+    // Drop alert
+    + dropAlertHTML
+    // Score
+    + scoreHTML
+    // Stats grid
+    +'<div class="stats-grid">'
+    +'<div class="stat-box"><div class="stat-label">MaximumFCC</div><div class="stat-value" style="color:'+(fcc?color:'var(--muted)')+'">'+(fcc??'—')+'</div>'+(fcc?'<div class="stat-unit">mAh</div>'+changeBadge(fcc,prev?.MaximumFCC,' mAh'):'')+'</div>'
+    +'<div class="stat-box"><div class="stat-label">NominalCharge</div><div class="stat-value">'+(nom??'—')+'</div>'+(nom?'<div class="stat-unit">mAh</div>'+changeBadge(nom,prev?.NominalChargeCapacity,' mAh'):'')+'</div>'
+    +'<div class="stat-box"><div class="stat-label">AppleRawMax</div><div class="stat-value">'+(raw??'—')+'</div>'+(raw?'<div class="stat-unit">mAh</div>'+changeBadge(raw,prev?.AppleRawMaxCapacity,' mAh'):'')+'</div>'
+    +'<div class="stat-box"><div class="stat-label">Cycle Count</div><div class="stat-value">'+(cyc??'—')+'</div>'+(cyc?'<div class="stat-unit">siklus</div>'+changeBadge(cyc,prev?.CycleCount,' siklus'):'')+'</div>'
+    +'</div>'
+    // Explanation
+    +'<div class="explanation"><h4>// penjelasan</h4>'
+    +(fcc?'<div class="exp-item"><div class="exp-key">MaximumFCC — '+fcc+' mAh</div><div class="exp-val">Kapasitas maksimum tertinggi yang pernah dicatat sistem. Sifatnya lifetime max, hanya bisa naik atau stagnan.</div></div>':'')
+    +(nom?'<div class="exp-item"><div class="exp-key">NominalChargeCapacity — '+nom+' mAh</div><div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis.</div></div>':'')
+    +(raw?'<div class="exp-item"><div class="exp-key">AppleRawMaxCapacity — '+raw+' mAh</div><div class="exp-val">Pembacaan mentah langsung dari chip baterai sebelum diproses sistem.</div></div>':'')
+    +(cyc?'<div class="exp-item"><div class="exp-key">Cycle Count — '+cyc+' siklus</div><div class="exp-val">'+cycleDesc(cyc)+'</div></div>':'')
+    +(data.batteryTrusted!==null?'<div class="exp-item"><div class="exp-key" style="color:'+(data.batteryTrusted?'var(--green)':'var(--red)')+'">Baterai Original Apple — '+(data.batteryTrusted?'✅ Ya':'❌ Non-original')+'</div><div class="exp-val">'+(data.batteryTrusted?'Baterai diakui Apple sebagai komponen original.':'Baterai mungkin sudah diganti dengan part non-original.')+'</div></div>':'')
+    +'</div>'
+    // Verdict
+    +'<div class="verdict">'+healthDesc(pct)+(cyc?' '+cycleDesc(cyc):'')+'</div>'
+    // Predict card
+    + predHTML
+    // Summary
+    + summHTML
+    // Chart
+    + chartHTML
+    // Trend bars
+    + trendHTML
+    // Notes
+    + notesHTML
+    // Actions
+    +'<div class="actions">'
+    +'<button class="btn btn-primary" onclick="document.getElementById(\'fileInput\').click()">Upload File Baru</button>'
+    +'<button class="btn btn-ghost" onclick="window.print()">🖨️ Print / Save PDF</button>'
+    +'</div>'
+    +'</div>';
+
+  // Init chart after DOM ready
+  setTimeout(() => initChart(history), 100);
+}
+
+function saveCurrentNote() {
+  const note = document.getElementById('noteInput')?.value || '';
+  if (currentDate) {
+    saveNote(currentDate, note);
+    const saved = document.getElementById('notesSaved');
+    if (saved) { saved.style.opacity='1'; setTimeout(()=>saved.style.opacity='0',2000); }
+  }
+}
+
+// ── Process file ──────────────────────────────────────────────────────
 function processText(text, filename) {
   const data = parseFile(text);
   const date = extractDate(filename);
   const history = getHistory();
   const prev = history.length ? history[0].raw : null;
+  const isOsUpdate = /"rolloverReason":"osUpdate"/.test(text);
 
-  // Deteksi rolloverReason osUpdate = file generate saat update iOS
-  const isOsUpdateFile = /"rolloverReason":"osUpdate"/.test(text);
-
-  // Kalau formatType 'none' = nggak ada data baterai
   if (data._formatType === 'none') {
     document.getElementById('errorBox').style.display = 'none';
-
-    // Tampilkan data terakhir dari history + notice
     const lastEntry = history.length ? history[0] : null;
-    const noticeMsg = isOsUpdateFile
-      ? `File <strong>${filename}</strong> di-generate saat update iOS — data baterai direset oleh sistem dan tidak tersedia di file ini.`
-      : `File <strong>${filename}</strong> tidak mengandung data baterai (berisi data aktivitas umum).`;
-
+    const msg = isOsUpdate
+      ? 'File <strong>'+filename+'</strong> di-generate saat update iOS — data baterai tidak tersedia.'
+      : 'File <strong>'+filename+'</strong> tidak mengandung data baterai (data aktivitas umum).';
     if (lastEntry && lastEntry.raw) {
-      // Render data terakhir yang valid dengan banner notice
-      document.getElementById('resultContainer').innerHTML = `
-        <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
-          <span style="font-size:18px;flex-shrink:0">⚠️</span>
-          <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
-            ${noticeMsg}<br>
-            <strong>Menampilkan data terakhir yang valid (${lastEntry.date}).</strong>
-          </div>
-        </div>`;
-      // Render data history terakhir
-      const idx = 0;
-      const prevRaw = history[1]?.raw ?? null;
-      render(lastEntry.raw, lastEntry.date, lastEntry.filename || lastEntry.date, prevRaw);
-      // Prepend notice ke result (render udah replace resultContainer, jadi inject notice dulu)
+      render(lastEntry.raw, lastEntry.date, lastEntry.filename||lastEntry.date, history[1]?.raw??null);
       const existing = document.getElementById('resultContainer').innerHTML;
-      document.getElementById('resultContainer').innerHTML = `
-        <div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
-          <span style="font-size:18px;flex-shrink:0">⚠️</span>
-          <div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">
-            ${noticeMsg}<br>
-            <strong>Menampilkan data terakhir yang valid (${lastEntry.date}).</strong>
-          </div>
-        </div>` + existing;
+      document.getElementById('resultContainer').innerHTML =
+        '<div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;display:flex;gap:10px;align-items:flex-start;margin-bottom:16px">'
+        +'<span style="font-size:18px;flex-shrink:0">⚠️</span>'
+        +'<div style="font-family:var(--mono);font-size:11px;color:rgba(255,159,10,0.9);line-height:1.7">'+msg+'<br><strong>Menampilkan data terakhir yang valid ('+lastEntry.date+').</strong></div>'
+        +'</div>' + existing;
     } else {
-      // Belum ada history sama sekali
       document.getElementById('errorBox').style.display = 'block';
-      document.getElementById('errorBox').textContent = `❌ ${isOsUpdateFile ? 'File ini di-generate saat update iOS — data baterai tidak tersedia. Upload file lain dengan tanggal sebelum update.' : 'Data baterai tidak ditemukan. Coba file dengan nomor _0002_, _0004_, atau _000_.'}`;
+      document.getElementById('errorBox').textContent = isOsUpdate
+        ? '❌ File ini di-generate saat update iOS. Upload file lain dengan tanggal sebelum update.'
+        : '❌ Data baterai tidak ditemukan. Coba file dengan nomor _0002_, _0004_, atau _000_.';
     }
-    renderHistory();
-    return;
+    renderHistory(); return;
   }
 
   document.getElementById('errorBox').style.display = 'none';
   const nomVal = data.NominalChargeCapacity || prev?.NominalChargeCapacity || 0;
-  saveHistory({ date, filename, nom: nomVal, pct: data.MaximumCapacityPercent, raw: data });
+  saveHistory({ date, filename, nom:nomVal, pct:data.MaximumCapacityPercent, raw:data });
   render(data, date, filename, prev);
   renderHistory();
 }
 
 function handleFile(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => processText(e.target.result, file.name);
-  reader.readAsText(file);
+  const r = new FileReader();
+  r.onload = e => processText(e.target.result, file.name);
+  r.readAsText(file);
 }
 
-// ── History UI ───────────────────────────────────────────────────────
-function renderHistory(activeDateHighlight = null) {
+// ── History UI ────────────────────────────────────────────────────────
+function renderHistory(activeDateHL=null) {
   const h = getHistory();
-  const sec = document.getElementById('historySection');
+  const sec  = document.getElementById('historySection');
   const list = document.getElementById('historyList');
-  const filterEl = document.getElementById('monthFilter');
-
-  if (h.length <= 1) { sec.style.display = 'none'; return; }
+  const filt = document.getElementById('monthFilter');
+  if (h.length<=1) { sec.style.display='none'; return; }
   sec.style.display = 'block';
-
-  // Kumpulin semua bulan unik, urut dari terbaru
-  const months = [...new Set(h.map(e => getYearMonth(e.date)))].sort((a,b) => b.localeCompare(a));
-
-  // Render tab bulan
-  filterEl.innerHTML = `
-    <div class="month-tab ${activeMonth === 'all' ? 'active' : ''}" onclick="setMonthFilter('all')">Semua</div>
-    ${months.map(ym => `
-      <div class="month-tab ${activeMonth === ym ? 'active' : ''}" onclick="setMonthFilter('${ym}')">
-        ${formatMonthLabel(ym)}
-      </div>`).join('')}
-  `;
-
-  // Filter history berdasarkan bulan aktif
-  const filtered = activeMonth === 'all' ? h : h.filter(e => getYearMonth(e.date) === activeMonth);
-
-  if (filtered.length === 0) {
-    list.innerHTML = `<div class="history-empty">— nggak ada data di bulan ini</div>`;
-    return;
-  }
-
-  list.innerHTML = filtered.map(entry => `
-    <div class="history-pill ${activeDateHighlight === entry.date ? 'active-pill' : ''}" onclick="reloadHistory('${entry.date}')">
-      <span class="dot"></span>${entry.date} · ${entry.nom || '–'} mAh · ${entry.pct}%
-    </div>`).join('');
+  const months = [...new Set(h.map(e=>getYearMonth(e.date)))].sort((a,b)=>b.localeCompare(a));
+  filt.innerHTML = '<div class="month-tab '+(activeMonth==='all'?'active':'')+'" onclick="setMonthFilter(\'all\')">Semua</div>'
+    +months.map(ym=>'<div class="month-tab '+(activeMonth===ym?'active':'')+'" onclick="setMonthFilter(\''+ym+'\')">'+formatMonthLabel(ym)+'</div>').join('');
+  const filtered = activeMonth==='all' ? h : h.filter(e=>getYearMonth(e.date)===activeMonth);
+  if (!filtered.length) { list.innerHTML='<div class="history-empty">— nggak ada data di bulan ini</div>'; return; }
+  const notes = getNotes();
+  list.innerHTML = filtered.map(e=>'<div class="history-pill '+(activeDateHL===e.date?'active-pill':'')+'" onclick="reloadHistory(\''+e.date+'\')">'
+    +'<span class="dot"></span>'+e.date+' · '+(e.nom||'–')+' mAh · '+e.pct+'%'
+    +(notes[e.date]?' 📝':'')+'</div>').join('');
 }
 
-function setMonthFilter(ym) {
-  activeMonth = ym;
-  renderHistory();
-}
+function setMonthFilter(ym) { activeMonth=ym; renderHistory(); }
 
 function reloadHistory(date) {
   const h = getHistory();
-  const entry = h.find(x => x.date === date);
+  const entry = h.find(x=>x.date===date);
   if (!entry) return;
   const idx = h.indexOf(entry);
-  const prev = h[idx + 1]?.raw ?? null;
-  render(entry.raw, entry.date, entry.filename || entry.date, prev);
-  renderHistory(date); // highlight pill yang aktif
+  render(entry.raw, entry.date, entry.filename||entry.date, h[idx+1]?.raw??null);
+  renderHistory(date);
 }
 
-// ── Event listeners ──────────────────────────────────────────────────
-document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
-
+// ── Events ────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e=>handleFile(e.target.files[0]));
 const dz = document.getElementById('dropZone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('drag');
-  handleFile(e.dataTransfer.files[0]);
-});
-
-// init history
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', ()=>dz.classList.remove('drag'));
+dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
 renderHistory();
 </script>
 </body>
