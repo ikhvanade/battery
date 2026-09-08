@@ -453,20 +453,94 @@ function render(data, date, filename, prev) {
   const val = (v) => v != null ? v : '<span style="color:var(--muted);font-size:14px">—</span>';
 
   const history = getHistory();
+
+  // ── BH Prediction ─────────────────────────────────────────────────
+  let bhPredictHTML = '';
+  if (nom && pct && history.length >= 3) {
+    // Ambil 5 data terakhir yang punya nominal untuk kalkulasi rate
+    const recentWithNom = history.filter(h => h.nom && h.nom > 0).slice(0, 5);
+
+    if (recentWithNom.length >= 2) {
+      const oldest = recentWithNom[recentWithNom.length - 1];
+      const newest = recentWithNom[0];
+      const daysDiff = oldest.date && newest.date
+        ? Math.max(1, (new Date(newest.date) - new Date(oldest.date)) / (1000*60*60*24))
+        : 1;
+      const nomDiff  = oldest.nom - newest.nom; // positif = turun
+      const ratePerDay = nomDiff / daysDiff;    // mAh per hari (negatif = lagi naik)
+
+      // Threshold tiap BH level (estimasi berdasarkan kapasitas desain ~3279)
+      const designCapacity = fcc ? fcc * 0.955 : 3279;
+      const bhThresholds = [
+        { bh: 99, nom: Math.round(designCapacity * 0.99) },
+        { bh: 98, nom: Math.round(designCapacity * 0.98) },
+        { bh: 97, nom: Math.round(designCapacity * 0.97) },
+        { bh: 96, nom: Math.round(designCapacity * 0.96) },
+        { bh: 95, nom: Math.round(designCapacity * 0.95) },
+        { bh: 90, nom: Math.round(designCapacity * 0.90) },
+        { bh: 85, nom: Math.round(designCapacity * 0.85) },
+        { bh: 80, nom: Math.round(designCapacity * 0.80) },
+      ];
+
+      // Cari threshold berikutnya di bawah nilai nominal sekarang
+      const nextThreshold = bhThresholds.find(t => t.nom < nom);
+
+      if (nextThreshold && ratePerDay > 0) {
+        // Nominal lagi turun — hitung estimasi kapan nyampe threshold
+        const nomGap = nom - nextThreshold.nom;
+        const daysLeft = Math.round(nomGap / ratePerDay);
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + daysLeft);
+        const targetStr = targetDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+        const urgency = daysLeft < 14 ? 'red' : daysLeft < 30 ? 'orange' : 'green';
+        const urgencyColor = urgency === 'red' ? 'var(--red)' : urgency === 'orange' ? 'var(--orange)' : 'var(--green)';
+        const urgencyBg = urgency === 'red' ? 'rgba(255,69,58,0.08)' : urgency === 'orange' ? 'rgba(255,159,10,0.08)' : 'rgba(0,232,122,0.08)';
+        const urgencyBorder = urgency === 'red' ? 'rgba(255,69,58,0.3)' : urgency === 'orange' ? 'rgba(255,159,10,0.3)' : 'rgba(0,232,122,0.3)';
+        const icon = urgency === 'red' ? '🔴' : urgency === 'orange' ? '🟠' : '🟢';
+
+        bhPredictHTML = '<div style="background:' + urgencyBg + ';border:1px solid ' + urgencyBorder + ';border-radius:16px;padding:18px 20px;margin-top:16px">'
+          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">' + icon + ' PREDIKSI PENURUNAN BH</div>'
+          + '<div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:6px">'
+          + '<span style="font-size:32px;font-weight:800;color:' + urgencyColor + ';line-height:1">' + daysLeft + '</span>'
+          + '<span style="font-size:14px;color:rgba(255,255,255,0.5);padding-bottom:4px">hari lagi</span>'
+          + '</div>'
+          + '<div style="font-size:14px;font-weight:600;margin-bottom:4px">BH kemungkinan turun ke <span style="color:' + urgencyColor + '">' + nextThreshold.bh + '%</span></div>'
+          + '<div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:10px">estimasi sekitar ' + targetStr + '</div>'
+          + '<div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:10px 12px">'
+          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px">DETAIL KALKULASI</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--mono);font-size:11px">'
+          + '<div style="color:rgba(255,255,255,0.5)">Nominal sekarang</div><div style="color:var(--text)">' + nom + ' mAh</div>'
+          + '<div style="color:rgba(255,255,255,0.5)">Threshold ' + nextThreshold.bh + '%</div><div style="color:var(--text)">' + nextThreshold.nom + ' mAh</div>'
+          + '<div style="color:rgba(255,255,255,0.5)">Sisa turun</div><div style="color:' + urgencyColor + '">' + nomGap + ' mAh</div>'
+          + '<div style="color:rgba(255,255,255,0.5)">Rate penurunan</div><div style="color:var(--text)">~' + ratePerDay.toFixed(1) + ' mAh/hari</div>'
+          + '</div></div>'
+          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.3);margin-top:10px">* estimasi berdasarkan tren ' + recentWithNom.length + ' data terakhir — bisa berubah tergantung pola charging</div>'
+          + '</div>';
+      } else if (nextThreshold && ratePerDay <= 0) {
+        // Nominal lagi naik atau stabil — aman
+        bhPredictHTML = '<div style="background:rgba(0,232,122,0.06);border:1px solid rgba(0,232,122,0.2);border-radius:16px;padding:16px 20px;margin-top:16px">'
+          + '<div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🟢 PREDIKSI PENURUNAN BH</div>'
+          + '<div style="font-size:14px;font-weight:600;color:var(--green)">Nominal sedang naik atau stabil ✅</div>'
+          + '<div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.45);margin-top:4px">BH tidak akan turun dalam waktu dekat selama tren ini berlanjut.</div>'
+          + '</div>';
+      }
+    }
+  }
+
   let trendHTML = '';
   if (history.length > 1) {
-    const maxNom = Math.max(...history.map(h => h.nom));
-    trendHTML = `
-    <div class="trend-section">
-      <div class="trend-title">📈 Tren NominalCharge dari semua file</div>
-      ${history.map(h => `
-        <div class="trend-row">
-          <div class="trend-date">${h.date}</div>
-          <div class="trend-bar-wrap"><div class="trend-bar" style="width:${(h.nom/maxNom*100).toFixed(1)}%"></div></div>
-          <div class="trend-val" style="color:${healthColor(h.pct)}">${h.nom}</div>
-        </div>
-      `).join('')}
-    </div>`;
+    const maxNom = Math.max(...history.map(h => h.nom).filter(Boolean));
+    trendHTML = '<div class="trend-section">'
+      + '<div class="trend-title">📈 Tren NominalCharge dari semua file</div>'
+      + history.filter(h => h.nom).map(h =>
+          '<div class="trend-row">'
+          + '<div class="trend-date">' + h.date + '</div>'
+          + '<div class="trend-bar-wrap"><div class="trend-bar" style="width:' + (h.nom/maxNom*100).toFixed(1) + '%"></div></div>'
+          + '<div class="trend-val" style="color:' + healthColor(h.pct) + '">' + h.nom + '</div>'
+          + '</div>'
+        ).join('')
+      + '</div>';
   }
 
   document.getElementById('resultContainer').innerHTML = `
@@ -541,6 +615,8 @@ function render(data, date, filename, prev) {
     <div class="verdict">
       ${healthDesc(pct, cyc)} ${cyc ? cycleDesc(cyc) : ''}
     </div>
+
+    ${bhPredictHTML}
 
     ${trendHTML}
 
