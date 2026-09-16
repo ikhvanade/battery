@@ -594,9 +594,32 @@ function renderHistory(activeDateHL=null) {
   const filtered = activeMonth==='all' ? h : h.filter(e=>getYearMonth(e.date)===activeMonth);
   if (!filtered.length) { list.innerHTML='<div class="history-empty">— nggak ada data di bulan ini</div>'; return; }
   const notes = getNotes();
-  list.innerHTML = filtered.map(e=>'<div class="history-pill '+(activeDateHL===e.date?'active-pill':'')+'" onclick="reloadHistory(\''+e.date+'\')">'
-    +'<span class="dot"></span>'+e.date+' · '+(e.nom||'–')+' mAh · '+e.pct+'%'
-    +(notes[e.date]?' 📝':'')+'</div>').join('');
+  list.innerHTML = filtered.map(e=>{
+    const hasnote = notes[e.date] ? ' 📝' : '';
+    const isActive = activeDateHL===e.date ? 'active-pill' : '';
+    return '<div class="history-pill '+isActive+'" style="padding-right:6px">'
+      +'<span class="dot" onclick="reloadHistory(''+e.date+'')" style="cursor:pointer;flex-shrink:0"></span>'
+      +'<span onclick="reloadHistory(''+e.date+'')" style="cursor:pointer;flex:1">'+e.date+' · '+(e.nom||'–')+' mAh · '+e.pct+'%'+hasnote+'</span>'
+      +'<span onclick="deleteHistory(''+e.date+'')" title="Hapus" style="cursor:pointer;color:rgba(255,69,58,0.4);font-size:14px;padding:0 4px;border-radius:4px;line-height:1;transition:color 0.2s;flex-shrink:0" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='rgba(255,69,58,0.4)'">✕</span>'
+      +'</div>';
+  }).join('');
+}
+
+function deleteHistory(date) {
+  if (!confirm('Hapus riwayat ' + date + '?')) return;
+  const h = getHistory().filter(x => x.date !== date);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+  // Kalau yang dihapus adalah yang sedang ditampilkan, reset resultContainer
+  if (currentDate === date) {
+    if (h.length > 0) {
+      const next = h[0];
+      render(next.raw, next.date, next.filename||next.date, h[1]?.raw??null);
+    } else {
+      document.getElementById('resultContainer').innerHTML = '';
+      currentDate = null;
+    }
+  }
+  renderHistory();
 }
 
 function setMonthFilter(ym) { activeMonth=ym; renderHistory(); }
