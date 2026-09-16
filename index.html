@@ -625,7 +625,7 @@ async function processText(text, filename) {
         ? '❌ File ini di-generate saat update iOS. Upload file lain dengan tanggal sebelum update.'
         : '❌ Data baterai tidak ditemukan. Coba file dengan nomor _0002_, _0004_, atau _000_.';
     }
-    await renderHistory();  // init on load return;
+    await renderHistory(); return;
   }
 
   document.getElementById('errorBox').style.display = 'none';
@@ -695,12 +695,21 @@ async function reloadHistory(date) {
 }
 
 // ── Events ────────────────────────────────────────────────────────────
+// ── Events & Init ────────────────────────────────────────────────────
 document.getElementById('fileInput').addEventListener('change', e=>handleFile(e.target.files[0]));
 const dz = document.getElementById('dropZone');
 dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
 dz.addEventListener('dragleave', ()=>dz.classList.remove('drag'));
 dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
-renderHistory();
+
+// Init: load history on page load
+(async () => {
+  try {
+    await renderHistory();
+  } catch(e) {
+    console.error('Init error:', e);
+  }
+})();
 </script>
 </body>
 </html>
