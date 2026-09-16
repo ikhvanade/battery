@@ -259,8 +259,14 @@ function parseFile(text) {
     const m = text.match(/"maximumCapacityPercent":(\d+)/);
     if (m) result.MaximumCapacityPercent = parseInt(m[1]);
   }
-  const trustedM = text.match(/"batteryTrusted":(true|false)/);
-  result.batteryTrusted = trustedM ? trustedM[1]==='true' : null;
+  // batteryTrusted: hanya tangkap true/false eksplisit, null di file = data tidak tersedia
+  const trustedM = text.match(/"batteryTrusted":(true|false)(?![\s\S]*"batteryTrusted":null)/);
+  const trustedNull = /"batteryTrusted":null/.test(text);
+  result.batteryTrusted = trustedNull ? null : (trustedM ? trustedM[1]==='true' : null);
+  // Kalau ada true meski ada null, prioritaskan true
+  if (/"batteryTrusted":true/.test(text)) result.batteryTrusted = true;
+  else if (/"batteryTrusted":false/.test(text)) result.batteryTrusted = false;
+  else result.batteryTrusted = null; // null = data tidak tersedia, jangan tampilkan
   const discM = text.match(/"BatteryCellDisconnectCount_Last_Value_Of_Day"[\s\S]*?"last_value_value":(\d+)/);
   result.cellDisconnect = discM ? parseInt(discM[1]) : null;
   const rollM = text.match(/"rolloverReason":"([^"]+)"/);
@@ -573,7 +579,7 @@ async function render(data, date, filename, prev) {
     +(nom?'<div class="exp-item"><div class="exp-key">NominalChargeCapacity — '+nom+' mAh</div><div class="exp-val">Kapasitas "resmi" yang diakui sistem untuk estimasi baterai sehari-hari. Dihitung ulang secara dinamis.</div></div>':'')
     +(raw?'<div class="exp-item"><div class="exp-key">AppleRawMaxCapacity — '+raw+' mAh</div><div class="exp-val">Pembacaan mentah langsung dari chip baterai sebelum diproses sistem.</div></div>':'')
     +(cyc?'<div class="exp-item"><div class="exp-key">Cycle Count — '+cyc+' siklus</div><div class="exp-val">'+cycleDesc(cyc)+'</div></div>':'')
-    +(data.batteryTrusted!==null?'<div class="exp-item"><div class="exp-key" style="color:'+(data.batteryTrusted?'var(--green)':'var(--red)')+'">Baterai Original Apple — '+(data.batteryTrusted?'✅ Ya':'❌ Non-original')+'</div><div class="exp-val">'+(data.batteryTrusted?'Baterai diakui Apple sebagai komponen original.':'Baterai mungkin sudah diganti dengan part non-original.')+'</div></div>':'')
+    +(data.batteryTrusted===true?'<div class="exp-item"><div class="exp-key" style="color:var(--green)">Baterai Original Apple — ✅ Ya</div><div class="exp-val">Baterai diakui Apple sebagai komponen original yang sah.</div></div>':data.batteryTrusted===false?'<div class="exp-item"><div class="exp-key" style="color:var(--red)">Baterai Original Apple — ❌ Non-original</div><div class="exp-val">Baterai mungkin sudah diganti dengan part non-original.</div></div>':'')
     +'</div>'
     // Verdict
     +'<div class="verdict">'+healthDesc(pct)+(cyc?' '+cycleDesc(cyc):'')+'</div>'
@@ -665,16 +671,14 @@ async function renderHistory(activeDateHL=null) {
   const filtered = activeMonth==='all' ? h : h.filter(e=>getYearMonth(e.date)===activeMonth);
   if (!filtered.length) { list.innerHTML='<div class="history-empty">— nggak ada data di bulan ini</div>'; return; }
   const notes = getNotes();
-  list.innerHTML = filtered.map(e => {
+  list.innerHTML = filtered.map(e=>{
     const hasnote = notes[e.date] ? ' 📝' : '';
-    const isActive = activeDateHL === e.date ? 'active-pill' : '';
-    return `
-      <div class="history-pill ${isActive}" style="padding-right:6px">
-        <span class="dot" onclick="reloadHistory('${e.date}')" style="cursor:pointer;flex-shrink:0"></span>
-        <span onclick="reloadHistory('${e.date}')" style="cursor:pointer;flex:1">${e.date} ·${e.nom || '–'} mAh · ${e.pct}\%${hasnote}</span>
-        <span onclick="deleteHistory('${e.date}')" title="Hapus" style="cursor:pointer;color:rgba(255,69,58,0.4);font-size:14px;padding:0 4px;border-radius:4px;line-height:1;transition:color 0.2s;flex-shrink:0" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='rgba(255,69,58,0.4)'">✕</span>
-      </div>
-    `;
+    const isActive = activeDateHL===e.date ? 'active-pill' : '';
+    return '<div class="history-pill '+isActive+'" style="padding-right:6px">'
+      +'<span class="dot" onclick="reloadHistory(''+e.date+'')" style="cursor:pointer;flex-shrink:0"></span>'
+      +'<span onclick="reloadHistory(''+e.date+'')" style="cursor:pointer;flex:1">'+e.date+' · '+(e.nom||'–')+' mAh · '+e.pct+'%'+hasnote+'</span>'
+      +'<span onclick="deleteHistory(''+e.date+'')" title="Hapus" style="cursor:pointer;color:rgba(255,69,58,0.4);font-size:14px;padding:0 4px;border-radius:4px;line-height:1;transition:color 0.2s;flex-shrink:0" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='rgba(255,69,58,0.4)'">✕</span>'
+      +'</div>';
   }).join('');
 }
 
