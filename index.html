@@ -155,78 +155,88 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-// ── Supabase Config — ganti dengan credentials kamu ──────────────────
-const SUPABASE_URL = 'https://giuzviqlijitzpbsipya.supabase.co';
+// ── Supabase Config — GANTI dengan credentials kamu ─────────────────
+const SUPABASE_URL = 'https://giuzviqlijitzpbsipya.supabase.co'; // contoh: https://abcdef.supabase.co
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdXp2aXFsaWppdHpwYnNpcHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MjYzNDQsImV4cCI6MjEwNTEwMjM0NH0.B7gGq0BIDKxXNXCFED0q5TduzmCiCw_mXw0ghLnFc5U';
-const SB_HEADERS   = { 'Content-Type':'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY };
+const SB_HEADERS   = { 'Content-Type':'application/json', 'apikey':SUPABASE_KEY, 'Authorization':'Bearer '+SUPABASE_KEY };
+const SB_OK        = !SUPABASE_URL.includes('GANTI'); // false kalau belum diisi
 
-// ── Supabase API helpers ──────────────────────────────────────────────
+// ── Supabase API helpers (dengan timeout 5 detik) ─────────────────────
 async function sbFetch(path, options={}) {
-  const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, { headers: SB_HEADERS, ...options });
-  if (!res.ok) { const e=await res.text(); console.error('SB error:', e); return null; }
-  return res.json().catch(()=>null);
+  if (!SB_OK) return null; // skip kalau credentials belum diisi
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 5000);
+  try {
+    const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, {
+      headers: SB_HEADERS, signal: controller.signal, ...options
+    });
+    clearTimeout(timer);
+    if (!res.ok) { console.error('SB error:', res.status, await res.text()); return null; }
+    return res.status === 204 ? true : res.json().catch(()=>null);
+  } catch(e) {
+    clearTimeout(timer);
+    console.warn('SB fetch failed:', e.message);
+    return null;
+  }
 }
 
 // ── Storage: Supabase + localStorage fallback ─────────────────────────
-const NOTES_KEY = 'batteryNotes'; // notes tetap di localStorage
+const NOTES_KEY = 'batteryNotes';
 let activeMonth  = 'all';
 let currentDate  = null;
 let bhChart      = null;
-let _cache       = null; // in-memory cache biar nggak terlalu banyak request
+let _cache       = null;
+
+function lsGet() { try { return JSON.parse(localStorage.getItem('batteryHistory')||'[]'); } catch { return []; } }
+function lsSet(h) { try { localStorage.setItem('batteryHistory', JSON.stringify(h.slice(0,200))); } catch {} }
 
 async function getHistory() {
   if (_cache) return _cache;
-  try {
+  if (SB_OK) {
     const data = await sbFetch('battery_logs?select=*&order=date.desc&limit=200');
-    if (data) {
+    if (Array.isArray(data) && data.length >= 0) {
       _cache = data.map(r => ({
-        date: r.date, filename: r.filename,
+        date: r.date, filename: r.filename||'',
         nom: r.nominal, pct: r.bh,
-        raw: { MaximumFCC:r.fcc, NominalChargeCapacity:r.nominal, AppleRawMaxCapacity:r.raw_max,
-               CycleCount:r.cycle_count, MaximumCapacityPercent:r.bh, _formatType:'full' }
+        raw: { MaximumFCC:r.fcc, NominalChargeCapacity:r.nominal,
+               AppleRawMaxCapacity:r.raw_max, CycleCount:r.cycle_count,
+               MaximumCapacityPercent:r.bh, _formatType:'full' }
       }));
+      // sync ke localStorage sebagai backup
+      lsSet(_cache);
       return _cache;
     }
-  } catch(e) { console.warn('Supabase unavailable, using localStorage', e); }
-  // fallback localStorage
-  try { return JSON.parse(localStorage.getItem('batteryHistory')||'[]'); } catch { return []; }
+  }
+  // fallback: pakai localStorage
+  return lsGet();
 }
 
 async function saveHistory(entry) {
-  _cache = null; // invalidate cache
-  const row = {
-    date: entry.date, filename: entry.filename||'',
-    nominal: entry.nom||null, bh: entry.pct||null,
-    fcc: entry.raw?.MaximumFCC||null,
-    raw_max: entry.raw?.AppleRawMaxCapacity||null,
-    cycle_count: entry.raw?.CycleCount||null,
-    raw_data: entry.raw||null,
-    notes: getNotes()[entry.date]||null
-  };
-  try {
+  _cache = null;
+  // selalu save localStorage dulu biar nggak hilang
+  const h = lsGet().filter(x=>x.date!==entry.date);
+  h.unshift(entry); lsSet(h);
+  // lalu coba save ke Supabase
+  if (SB_OK) {
     await sbFetch('battery_logs?on_conflict=date', {
       method: 'POST',
-      body: JSON.stringify(row),
-      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates' }
+      body: JSON.stringify({
+        date: entry.date, filename: entry.filename||'',
+        nominal: entry.nom||null, bh: entry.pct||null,
+        fcc: entry.raw?.MaximumFCC||null,
+        raw_max: entry.raw?.AppleRawMaxCapacity||null,
+        cycle_count: entry.raw?.CycleCount||null,
+        raw_data: entry.raw||null
+      }),
+      headers: { ...SB_HEADERS, 'Prefer':'resolution=merge-duplicates' }
     });
-  } catch(e) { console.warn('Supabase save failed, using localStorage', e); }
-  // selalu save ke localStorage juga sebagai backup
-  try {
-    const h = JSON.parse(localStorage.getItem('batteryHistory')||'[]').filter(x=>x.date!==entry.date);
-    h.unshift(entry);
-    localStorage.setItem('batteryHistory', JSON.stringify(h.slice(0,200)));
-  } catch(e) {}
+  }
 }
 
 async function deleteHistoryFromDB(date) {
   _cache = null;
-  try {
-    await sbFetch('battery_logs?date=eq.'+date, { method: 'DELETE' });
-  } catch(e) { console.warn('Supabase delete failed', e); }
-  try {
-    const h = JSON.parse(localStorage.getItem('batteryHistory')||'[]').filter(x=>x.date!==date);
-    localStorage.setItem('batteryHistory', JSON.stringify(h));
-  } catch(e) {}
+  lsSet(lsGet().filter(x=>x.date!==date));
+  if (SB_OK) await sbFetch('battery_logs?date=eq.'+date, { method:'DELETE' });
 }
 
 function getNotes() { try { return JSON.parse(localStorage.getItem(NOTES_KEY)||'{}'); } catch { return {}; } }
