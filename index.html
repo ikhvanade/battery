@@ -155,18 +155,80 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-const HISTORY_KEY = 'batteryHistory';
-const NOTES_KEY   = 'batteryNotes';
-let activeMonth   = 'all';
-let currentDate   = null;
-let bhChart       = null;
+// ── Supabase Config — ganti dengan credentials kamu ──────────────────
+const SUPABASE_URL = 'https://giuzviqlijitzpbsipya.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdXp2aXFsaWppdHpwYnNpcHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MjYzNDQsImV4cCI6MjEwNTEwMjM0NH0.B7gGq0BIDKxXNXCFED0q5TduzmCiCw_mXw0ghLnFc5U';
+const SB_HEADERS   = { 'Content-Type':'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY };
 
-function getHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); } catch { return []; } }
-function saveHistory(entry) {
-  const h = getHistory().filter(x => x.date !== entry.date);
-  h.unshift(entry);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0,200)));
+// ── Supabase API helpers ──────────────────────────────────────────────
+async function sbFetch(path, options={}) {
+  const res = await fetch(SUPABASE_URL+'/rest/v1/'+path, { headers: SB_HEADERS, ...options });
+  if (!res.ok) { const e=await res.text(); console.error('SB error:', e); return null; }
+  return res.json().catch(()=>null);
 }
+
+// ── Storage: Supabase + localStorage fallback ─────────────────────────
+const NOTES_KEY = 'batteryNotes'; // notes tetap di localStorage
+let activeMonth  = 'all';
+let currentDate  = null;
+let bhChart      = null;
+let _cache       = null; // in-memory cache biar nggak terlalu banyak request
+
+async function getHistory() {
+  if (_cache) return _cache;
+  try {
+    const data = await sbFetch('battery_logs?select=*&order=date.desc&limit=200');
+    if (data) {
+      _cache = data.map(r => ({
+        date: r.date, filename: r.filename,
+        nom: r.nominal, pct: r.bh,
+        raw: { MaximumFCC:r.fcc, NominalChargeCapacity:r.nominal, AppleRawMaxCapacity:r.raw_max,
+               CycleCount:r.cycle_count, MaximumCapacityPercent:r.bh, _formatType:'full' }
+      }));
+      return _cache;
+    }
+  } catch(e) { console.warn('Supabase unavailable, using localStorage', e); }
+  // fallback localStorage
+  try { return JSON.parse(localStorage.getItem('batteryHistory')||'[]'); } catch { return []; }
+}
+
+async function saveHistory(entry) {
+  _cache = null; // invalidate cache
+  const row = {
+    date: entry.date, filename: entry.filename||'',
+    nominal: entry.nom||null, bh: entry.pct||null,
+    fcc: entry.raw?.MaximumFCC||null,
+    raw_max: entry.raw?.AppleRawMaxCapacity||null,
+    cycle_count: entry.raw?.CycleCount||null,
+    raw_data: entry.raw||null,
+    notes: getNotes()[entry.date]||null
+  };
+  try {
+    await sbFetch('battery_logs?on_conflict=date', {
+      method: 'POST',
+      body: JSON.stringify(row),
+      headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates' }
+    });
+  } catch(e) { console.warn('Supabase save failed, using localStorage', e); }
+  // selalu save ke localStorage juga sebagai backup
+  try {
+    const h = JSON.parse(localStorage.getItem('batteryHistory')||'[]').filter(x=>x.date!==entry.date);
+    h.unshift(entry);
+    localStorage.setItem('batteryHistory', JSON.stringify(h.slice(0,200)));
+  } catch(e) {}
+}
+
+async function deleteHistoryFromDB(date) {
+  _cache = null;
+  try {
+    await sbFetch('battery_logs?date=eq.'+date, { method: 'DELETE' });
+  } catch(e) { console.warn('Supabase delete failed', e); }
+  try {
+    const h = JSON.parse(localStorage.getItem('batteryHistory')||'[]').filter(x=>x.date!==date);
+    localStorage.setItem('batteryHistory', JSON.stringify(h));
+  } catch(e) {}
+}
+
 function getNotes() { try { return JSON.parse(localStorage.getItem(NOTES_KEY)||'{}'); } catch { return {}; } }
 function saveNote(date, note) { const n=getNotes(); n[date]=note; localStorage.setItem(NOTES_KEY,JSON.stringify(n)); }
 function getYearMonth(d) { return d ? d.slice(0,7) : ''; }
@@ -398,7 +460,7 @@ function initChart(history) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────
-function render(data, date, filename, prev) {
+async function render(data, date, filename, prev) {
   currentDate = date;
   const pct  = data.MaximumCapacityPercent ?? 0;
   const fcc  = data.MaximumFCC ?? null;
@@ -408,7 +470,7 @@ function render(data, date, filename, prev) {
   const isPartial = data._formatType === 'partial';
   const [badgeClass, badgeText] = healthBadge(pct);
   const color = healthColor(pct);
-  const history = getHistory();
+  const history = await getHistory();
 
   // Drop alert
   const dropThreshold = 15;
@@ -536,10 +598,10 @@ function saveCurrentNote() {
 }
 
 // ── Process file ──────────────────────────────────────────────────────
-function processText(text, filename) {
+async function processText(text, filename) {
   const data = parseFile(text);
   const date = extractDate(filename);
-  const history = getHistory();
+  const history = await getHistory();
   const prev = history.length ? history[0].raw : null;
   const isOsUpdate = /"rolloverReason":"osUpdate"/.test(text);
 
@@ -550,7 +612,7 @@ function processText(text, filename) {
       ? 'File <strong>'+filename+'</strong> di-generate saat update iOS — data baterai tidak tersedia.'
       : 'File <strong>'+filename+'</strong> tidak mengandung data baterai (data aktivitas umum).';
     if (lastEntry && lastEntry.raw) {
-      render(lastEntry.raw, lastEntry.date, lastEntry.filename||lastEntry.date, history[1]?.raw??null);
+      await render(lastEntry.raw, lastEntry.date, lastEntry.filename||lastEntry.date, history[1]?.raw??null);
       const existing = document.getElementById('resultContainer').innerHTML;
       document.getElementById('resultContainer').innerHTML =
         '<div style="background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.3);border-radius:16px;padding:16px 20px;display:flex;gap:10px;align-items:flex-start;margin-bottom:16px">'
@@ -563,16 +625,15 @@ function processText(text, filename) {
         ? '❌ File ini di-generate saat update iOS. Upload file lain dengan tanggal sebelum update.'
         : '❌ Data baterai tidak ditemukan. Coba file dengan nomor _0002_, _0004_, atau _000_.';
     }
-    renderHistory(); return;
+    await renderHistory();  // init on load return;
   }
 
   document.getElementById('errorBox').style.display = 'none';
   const nomVal = data.NominalChargeCapacity || prev?.NominalChargeCapacity || 0;
-  saveHistory({ date, filename, nom:nomVal, pct:data.MaximumCapacityPercent, raw:data });
-  render(data, date, filename, prev);
-  renderHistory();
+  await saveHistory({ date, filename, nom:nomVal, pct:data.MaximumCapacityPercent, raw:data });
+  await render(data, date, filename, prev);
+  await renderHistory();
 }
-
 function handleFile(file) {
   if (!file) return;
   const r = new FileReader();
@@ -581,8 +642,8 @@ function handleFile(file) {
 }
 
 // ── History UI ────────────────────────────────────────────────────────
-function renderHistory(activeDateHL=null) {
-  const h = getHistory();
+async function renderHistory(activeDateHL=null) {
+  const h = await getHistory();
   const sec  = document.getElementById('historySection');
   const list = document.getElementById('historyList');
   const filt = document.getElementById('monthFilter');
@@ -605,32 +666,32 @@ function renderHistory(activeDateHL=null) {
   }).join('');
 }
 
-function deleteHistory(date) {
+async function deleteHistory(date) {
   if (!confirm('Hapus riwayat ' + date + '?')) return;
-  const h = getHistory().filter(x => x.date !== date);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
-  // Kalau yang dihapus adalah yang sedang ditampilkan, reset resultContainer
+  await deleteHistoryFromDB(date);
+  _cache = null;
+  const h = await getHistory();
   if (currentDate === date) {
     if (h.length > 0) {
       const next = h[0];
-      render(next.raw, next.date, next.filename||next.date, h[1]?.raw??null);
+      await render(next.raw, next.date, next.filename||next.date, h[1]?.raw??null);
     } else {
       document.getElementById('resultContainer').innerHTML = '';
       currentDate = null;
     }
   }
-  renderHistory();
+  await renderHistory();
 }
 
 function setMonthFilter(ym) { activeMonth=ym; renderHistory(); }
 
-function reloadHistory(date) {
-  const h = getHistory();
+async function reloadHistory(date) {
+  const h = await getHistory();
   const entry = h.find(x=>x.date===date);
   if (!entry) return;
   const idx = h.indexOf(entry);
-  render(entry.raw, entry.date, entry.filename||entry.date, h[idx+1]?.raw??null);
-  renderHistory(date);
+  await render(entry.raw, entry.date, entry.filename||entry.date, h[idx+1]?.raw??null);
+  await renderHistory(date);
 }
 
 // ── Events ────────────────────────────────────────────────────────────
